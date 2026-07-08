@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choisir un mot de passe — Skaelia Prospection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page-auth">
+    <div class="auth-logo">
+      <img class="logo-img logo-img-grande" src="/static/logo.svg" alt="Skaelia">
+      <span class="logo-texte logo-texte-grand">Skaelia</span>
+      <span class="logo-ai">AI</span>
+      <span class="logo-sous">prospection</span>
+    </div>
+    <div class="carte carte-auth">
+      <h1>Choisissez votre mot de passe</h1>
+      <p class="sous-titre">Votre accès a été validé. Définissez un mot de passe (8 caractères minimum) pour entrer dans l'outil.</p>
+      <div class="message-info erreur" id="msg" hidden></div>
+      <form id="form">
+        <label class="champ">
+          <span class="champ-libelle">Mot de passe</span>
+          <input type="password" id="mdp1" autocomplete="new-password" required minlength="8">
+        </label>
+        <label class="champ">
+          <span class="champ-libelle">Confirmez le mot de passe</span>
+          <input type="password" id="mdp2" autocomplete="new-password" required minlength="8">
+        </label>
+        <div class="auth-actions">
+          <button type="submit" class="btn btn-primaire" style="justify-content:center">Valider et accéder à l'outil</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.querySelector("#form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.querySelector("#msg");
+      const m1 = document.querySelector("#mdp1").value;
+      const m2 = document.querySelector("#mdp2").value;
+      if (m1 !== m2) { msg.textContent = "Les deux mots de passe ne correspondent pas."; msg.hidden = false; return; }
+      const r = await fetch("/api/definir-mdp", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jeton: "{{ jeton }}", mot_de_passe: m1 }),
+      });
+      const d = await r.json();
+      if (r.ok) { location.href = "/"; return; }
+      msg.textContent = d.erreur || "Impossible de définir le mot de passe.";
+      msg.hidden = false;
+    });
+  </script>
+</body>
+</html>

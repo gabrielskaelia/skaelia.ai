@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion — Skaelia Prospection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page-auth">
+    <div class="auth-logo">
+      <img class="logo-img logo-img-grande" src="/static/logo.svg" alt="Skaelia">
+      <span class="logo-texte logo-texte-grand">Skaelia</span>
+      <span class="logo-ai">AI</span>
+      <span class="logo-sous">prospection</span>
+    </div>
+
+    <!-- ===== Connexion ===== -->
+    <div class="carte carte-auth" id="carteConnexion">
+      <h1>Connexion</h1>
+      <p class="sous-titre">Accès réservé — connectez-vous avec votre compte.</p>
+      <div class="message-info erreur" id="msgConnexion" hidden></div>
+      <form id="formConnexion">
+        <label class="champ">
+          <span class="champ-libelle">Adresse email</span>
+          <input type="email" id="cEmail" autocomplete="username" required>
+        </label>
+        <label class="champ">
+          <span class="champ-libelle">Mot de passe</span>
+          <input type="password" id="cMdp" autocomplete="current-password" required>
+        </label>
+        <div class="auth-actions">
+          <button type="submit" class="btn btn-primaire" style="justify-content:center">Se connecter</button>
+        </div>
+      </form>
+      <hr class="separateur">
+      <p class="auth-lien">Pas encore de compte ? <button id="versDemande">Demander un accès</button></p>
+    </div>
+
+    <!-- ===== Demande d'accès ===== -->
+    <div class="carte carte-auth" id="carteDemande" hidden>
+      <h1>Demande d'accès</h1>
+      <p class="sous-titre">Votre demande sera soumise à validation par gabriel.praud&#64;skaelia.com. Une fois validée, vous recevrez un email pour choisir votre mot de passe.</p>
+      <div class="message-info" id="msgDemande" hidden></div>
+      <div class="lien-copiable" id="lienDemande" hidden></div>
+      <form id="formDemande">
+        <label class="champ">
+          <span class="champ-libelle">Nom et prénom</span>
+          <input type="text" id="dNom" autocomplete="name">
+        </label>
+        <label class="champ">
+          <span class="champ-libelle">Adresse email</span>
+          <input type="email" id="dEmail" autocomplete="email" required>
+        </label>
+        <div class="auth-actions">
+          <button type="submit" class="btn btn-primaire" style="justify-content:center">Envoyer la demande</button>
+        </div>
+      </form>
+      <hr class="separateur">
+      <p class="auth-lien">Déjà un compte ? <button id="versConnexion">Se connecter</button></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+
+    $("#versDemande").addEventListener("click", () => {
+      $("#carteConnexion").hidden = true; $("#carteDemande").hidden = false;
+    });
+    $("#versConnexion").addEventListener("click", () => {
+      $("#carteDemande").hidden = true; $("#carteConnexion").hidden = false;
+    });
+
+    $("#formConnexion").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const r = await fetch("/api/connexion", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("#cEmail").value, mot_de_passe: $("#cMdp").value }),
+      });
+      const d = await r.json();
+      if (r.ok) { location.href = "/"; return; }
+      const msg = $("#msgConnexion");
+      msg.textContent = d.erreur || "Connexion impossible.";
+      msg.hidden = false;
+    });
+
+    $("#formDemande").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const r = await fetch("/api/demande-acces", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom: $("#dNom").value, email: $("#dEmail").value }),
+      });
+      const d = await r.json();
+      const msg = $("#msgDemande");
+      msg.className = "message-info " + (r.ok ? "succes" : "erreur");
+      msg.textContent = d.message || d.erreur || "";
+      msg.hidden = false;
+      const lien = $("#lienDemande");
+      if (d.lien) { lien.textContent = d.lien; lien.hidden = false; }
+      if (r.ok) $("#formDemande").hidden = true;
+    });
+  </script>
+</body>
+</html>

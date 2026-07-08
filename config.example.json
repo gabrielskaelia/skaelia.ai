@@ -1,0 +1,35 @@
+{
+  "recherches": [
+    { "poste": "commercial", "lieu": "Nantes" }
+  ],
+  "pages_hellowork": 2,
+  "pages_indeed": 2,
+  "anciennete_jours_indeed": 14,
+  "max_entreprises_a_prospecter": 15,
+  "contacts_max_par_role": 2,
+  "usebouncer_api_key": "",
+  "smtp": {
+    "hote": "smtp.gmail.com",
+    "port": 587,
+    "utilisateur": "adresse@skaelia.com",
+    "mot_de_passe": "mot de passe d'application Google",
+    "expediteur": "adresse@skaelia.com"
+  },
+  "roles_cibles": [
+    "\"talent acquisition\" OR \"chargé de recrutement\" OR \"responsable recrutement\"",
+    "DRH OR RRH OR \"responsable RH\" OR \"ressources humaines\"",
+    "\"directeur général\" OR CEO OR fondateur OR gérant"
+  ],
+  "exclusions_cabinets": [
+    "Adecco", "Manpower", "Randstad", "Synergie", "Proman", "Crit",
+    "Actual", "Partnaire", "Temporis", "Start People", "Samsic Emploi",
+    "Aquila RH", "Vitalis Médical", "Lynx RH", "Michael Page", "Page Personnel",
+    "Hays", "Robert Half", "Expectra", "Fed Group", "Fed Business",
+    "Kelly Services", "Groupe Leader", "Leader Intérim", "Triangle Intérim",
+    "Menway", "Aboutir Emploi", "Abalone", "Job&Box", "Gerinter",
+    "SUP Intérim", "Interaction", "Domino RH", "Talentpeople", "LTd",
+    "Walters People", "Robert Walters", "Spring", "LHH Recruitment Solutions",
+    "UPTOO", "Mercato de l'Emploi", "CDI Emploi", "Recrutimmo",
+    "Lidl Recrutement", "Armée de Terre", "Armée de l'Air"
+  ]
+}

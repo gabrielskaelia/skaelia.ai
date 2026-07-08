@@ -1,0 +1,14 @@
+# Secrets et données locales — ne jamais pousser
+config.json
+data/
+resultats/
+*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Divers
+.claude/
+Thumbs.db

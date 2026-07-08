@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skaelia — Prospection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header class="entete">
+    <div class="entete-interieur">
+      <div class="logo">
+        <img class="logo-img" src="/static/logo.svg" alt="Skaelia">
+        <span class="logo-texte">Skaelia</span>
+        <span class="logo-ai">AI</span>
+        <span class="logo-sous">prospection</span>
+      </div>
+      <div class="entete-droite">
+        <span class="utilisateur-email" id="utilisateurEmail"></span>
+        <button class="btn btn-discret" id="btnReglages">Réglages</button>
+        <button class="btn btn-discret" id="btnChangerMdp">Mot de passe</button>
+        <button class="btn btn-secondaire" id="btnDeconnexion">Déconnexion</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== Recherche ===== -->
+    <div class="zone-recherche">
+      <h1>Qui recrute en ce moment&nbsp;?</h1>
+      <p class="sous-titre">Indiquez un poste : l'outil recense les offres HelloWork &amp; Indeed, identifie les décideurs et leurs coordonnées.</p>
+      <div class="barre-recherche">
+        <input type="text" id="fPoste" placeholder="Poste recherché — ex. : développeur, commercial, comptable…">
+        <input type="text" id="fLieu" class="champ-lieu" placeholder="Lieu (facultatif)">
+        <button class="btn btn-primaire" id="btnLancer">Rechercher</button>
+      </div>
+    </div>
+
+    <!-- ===== Suivi ===== -->
+    <div class="carte bloc-suivi" id="blocSuivi" hidden>
+      <div class="suivi-entete">
+        <h2 id="suiviTitre"></h2>
+        <div class="spinner" id="suiviSpinner"></div>
+      </div>
+      <div class="journal" id="journal"></div>
+    </div>
+
+    <!-- ===== Résultats ===== -->
+    <section id="vueResultats" hidden>
+      <div class="stats" id="statsResultats"></div>
+      <div class="res-actions">
+        <a class="btn btn-primaire" href="/api/telecharger">Télécharger l'Excel</a>
+      </div>
+      <div class="onglets">
+        <button class="onglet actif" data-table="contacts">Contacts</button>
+        <button class="onglet" data-table="offres">Offres</button>
+      </div>
+      <div class="carte-table">
+        <div class="table-defilante"><table id="tableResultats"></table></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Modale réglages ===== -->
+  <div class="voile" id="voileReglages" hidden>
+    <div class="modale">
+      <h2>Réglages</h2>
+      <label class="champ">
+        <span class="champ-libelle">Clé API UseBouncer (vérification des emails) <em id="etatCle"></em></span>
+        <input type="password" id="rCle" placeholder="Laisser vide pour ne pas changer">
+      </label>
+      <label class="champ">
+        <span class="champ-libelle">Cabinets / agences exclus (un par ligne)</span>
+        <textarea id="rExclusions" rows="6"></textarea>
+      </label>
+      <hr class="separateur">
+      <h2>Envoi d'emails (validation des comptes) <span class="badge badge-neutre" id="etatSmtp"></span></h2>
+      <label class="champ">
+        <span class="champ-libelle">Serveur SMTP</span>
+        <input type="text" id="rSmtpHote" placeholder="ex. : smtp.gmail.com">
+      </label>
+      <label class="champ">
+        <span class="champ-libelle">Port</span>
+        <input type="number" id="rSmtpPort" value="587">
+      </label>
+      <label class="champ">
+        <span class="champ-libelle">Adresse email d'envoi</span>
+        <input type="email" id="rSmtpUtilisateur" placeholder="ex. : gabriel.praud@skaelia.com">
+      </label>
+      <label class="champ">
+        <span class="champ-libelle">Mot de passe (Gmail : « mot de passe d'application »)</span>
+        <input type="password" id="rSmtpMdp" placeholder="Laisser vide pour ne pas changer">
+      </label>
+      <div class="modale-actions">
+        <button class="btn btn-primaire" id="btnSauverReglages">Enregistrer</button>
+        <button class="btn btn-secondaire" id="btnFermerReglages">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modale mot de passe ===== -->
+  <div class="voile" id="voileMdp" hidden>
+    <div class="modale">
+      <h2>Changer le mot de passe</h2>
+      <div class="message-info erreur" id="msgMdp" hidden></div>
+      <label class="champ">
+        <span class="champ-libelle">Mot de passe actuel</span>
+        <input type="password" id="mAncien" autocomplete="current-password">
+      </label>
+      <label class="champ">
+        <span class="champ-libelle">Nouveau mot de passe (8 caractères min.)</span>
+        <input type="password" id="mNouveau" autocomplete="new-password">
+      </label>
+      <div class="modale-actions">
+        <button class="btn btn-primaire" id="btnValiderMdp">Changer</button>
+        <button class="btn btn-secondaire" id="btnFermerMdp">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

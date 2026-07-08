@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ titre }} — Skaelia Prospection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page-auth">
+    <div class="auth-logo">
+      <img class="logo-img logo-img-grande" src="/static/logo.svg" alt="Skaelia">
+      <span class="logo-texte logo-texte-grand">Skaelia</span>
+      <span class="logo-ai">AI</span>
+      <span class="logo-sous">prospection</span>
+    </div>
+    <div class="carte carte-auth">
+      <h1>{{ titre }}</h1>
+      <p class="sous-titre">{{ message }}</p>
+      {% if lien_mdp %}
+      <div class="lien-copiable">{{ lien_mdp }}</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
