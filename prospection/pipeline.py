@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
-from . import (companies, emails, enrichment, export_excel, jobs_hellowork,
+from . import (companies, enrichment, export_excel, jobs_hellowork,
                jobs_indeed, jobs_linkedin, linkedin_contacts, nicoka)
 
 RACINE = Path(__file__).parent.parent
