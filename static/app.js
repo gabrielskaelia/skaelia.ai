@@ -581,7 +581,7 @@ async function ouvrirPrendreContact(cle) {
         <span id="pcStatutEmail">${c.statut_email ? badgeStatutEmail(c.statut_email) : ""}</span></div>
       <div class="oc-actions">
         <button class="btn btn-secondaire btn-petit" id="pcVerifier">Vérifier</button>
-        <button class="btn btn-primaire btn-petit" id="pcEcrire">Écrire le mail →</button>
+        <button class="btn btn-primaire btn-petit" id="pcEcrire">Contacter</button>
       </div>
     </div>` : `
     <div class="option-bloc">
@@ -594,7 +594,7 @@ async function ouvrirPrendreContact(cle) {
   const blocTel = c.telephone ? `
     <div class="option-bloc">
       <div class="option-titre"><span class="oc-icone oc-tel">☎</span> Téléphone — ${echapper(c.telephone)}</div>
-      <a class="btn btn-primaire btn-petit" href="tel:${echapper(c.telephone.replace(/\s/g, ""))}">Appeler</a>
+      <a class="btn btn-primaire btn-petit" href="tel:${echapper(c.telephone.replace(/\s/g, ""))}">Contacter</a>
     </div>` : `
     <div class="option-bloc">
       <div class="option-titre"><span class="oc-icone oc-tel">☎</span> Téléphone — aucun numéro</div>
@@ -636,7 +636,7 @@ async function ouvrirPrendreContact(cle) {
     window.location.href = `mailto:${c.email}?subject=${sujet}&body=${corps}`;
   }
 
-  // « Vérifier » = contrôle l'adresse (UseBouncer). « Écrire le mail » = ouvre
+  // « Vérifier » = contrôle l'adresse (UseBouncer). « Contacter » = ouvre
   // simplement le mail pré-rempli, SANS vérification (deux actions distinctes).
   $("#pcVerifier")?.addEventListener("click", async () => {
     $("#pcVerifier").disabled = true;
@@ -663,9 +663,9 @@ async function ouvrirPrendreContact(cle) {
 
   // Enrichissement FullEnrich À LA DEMANDE, INDÉPENDANT email / téléphone
   // (l'email et le mobile se paient séparément — mobile bien plus cher).
-  async function lancerEnrichissement(champ, cout, selecteur) {
-    const quoi = champ === "email" ? "l'email" : "le numéro de mobile";
-    if (!confirm(`Trouver ${quoi} via FullEnrich consomme des crédits (~${cout}). Continuer ?`)) return;
+  async function lancerEnrichissement(champ, selecteur) {
+    const quoi = champ === "email" ? "l'email" : "le numéro";
+    if (!confirm(`Rechercher ${quoi} via FullEnrich ? Cela utilise des crédits.`)) return;
     zone.querySelectorAll(selecteur).forEach((x) => { x.disabled = true; x.textContent = "Recherche en cours…"; });
     try {
       const r = await post("/api/mes-contacts/enrichir", { cle, champ });
@@ -678,9 +678,9 @@ async function ouvrirPrendreContact(cle) {
     ouvrirPrendreContact(cle);  // ré-affiche la modale à jour
   }
   zone.querySelectorAll(".pcEnrichirEmail").forEach((b) =>
-    b.addEventListener("click", () => lancerEnrichissement("email", "1 €", ".pcEnrichirEmail")));
+    b.addEventListener("click", () => lancerEnrichissement("email", ".pcEnrichirEmail")));
   zone.querySelectorAll(".pcEnrichirTel").forEach((b) =>
-    b.addEventListener("click", () => lancerEnrichissement("telephone", "10 €", ".pcEnrichirTel")));
+    b.addEventListener("click", () => lancerEnrichissement("telephone", ".pcEnrichirTel")));
 
   $("#voilePrendreContact").hidden = false;
 }
@@ -690,7 +690,7 @@ function boutonEnrichirEmail(c) {
     return '<small class="txt-faible">Enrichissement indisponible : clé FullEnrich manquante (Réglages).</small>';
   if (c.email_recherche === "fait")
     return '<small class="txt-faible">FullEnrich n\'a pas trouvé d\'email.</small>';
-  return '<button class="btn btn-primaire btn-petit pcEnrichirEmail">Trouver l\'email (FullEnrich, ~1 €) →</button>';
+  return '<button class="btn btn-primaire btn-petit pcEnrichirEmail">Rechercher</button>';
 }
 
 function boutonEnrichirTel(c) {
@@ -698,7 +698,7 @@ function boutonEnrichirTel(c) {
     return '<small class="txt-faible">Enrichissement indisponible : clé FullEnrich manquante (Réglages).</small>';
   if (c.tel_recherche === "fait")
     return '<small class="txt-faible">FullEnrich n\'a pas trouvé de numéro.</small>';
-  return '<button class="btn btn-secondaire btn-petit pcEnrichirTel">Trouver le n° (FullEnrich, ~10 €) →</button>';
+  return '<button class="btn btn-secondaire btn-petit pcEnrichirTel">Rechercher</button>';
 }
 
 function badgeStatutEmail(statut) {
