@@ -516,34 +516,41 @@ def api_ajouter_contacts():
                                 "jours": st.get("jours_depuis_action")})
         else:
             c["nicoka"] = {"verifie": False}
-        # Enrichissement (email + téléphone) lancé en arrière-plan si configuré
-        if enrichment.est_configure() and not (c.get("email") and c.get("telephone")):
-            c["enrichissement"] = "en_cours"
+        # PAS d'enrichissement automatique ici : les crédits FullEnrich ne sont
+        # consommés qu'à la demande, au clic dans « Prendre contact manuellement »
+        # (voir /api/mes-contacts/enrichir).
     ajoutes, liste = contacts_store.ajouter(session["email"], contacts)
-
-    # Lancer l'enrichissement FullEnrich en tâche de fond pour les nouveaux contacts
-    a_enrichir = [c for c in contacts if c.get("enrichissement") == "en_cours"]
-    if a_enrichir:
-        threading.Thread(target=_enrichir_en_fond,
-                         args=(session["email"], a_enrichir), daemon=True).start()
 
     return jsonify({"ok": True, "ajoutes": ajoutes, "contacts": liste,
                     "recents_nicoka": recents, "jours": nicoka.jours_prospection(),
-                    "nicoka_ok": bool(cache),
-                    "enrichissement_lance": bool(a_enrichir)})
+                    "nicoka_ok": bool(cache)})
 
 
-def _enrichir_en_fond(email_utilisateur, contacts):
-    """Trouve email + téléphone (FullEnrich) et met à jour le carnet."""
-    resultats = enrichment.enrichir_lot(contacts)
-    for c, r in zip(contacts, resultats or [{}] * len(contacts)):
-        maj = {"enrichissement": "fait"}
-        if r.get("email"):
-            maj["email"] = r["email"]
-            maj["statut_email"] = r.get("statut_email", "")
-        if r.get("telephone"):
-            maj["telephone"] = r["telephone"]
-        contacts_store.mettre_a_jour(email_utilisateur, contacts_store.cle_contact(c), maj)
+@app.post("/api/mes-contacts/enrichir")
+def api_enrichir_contact():
+    """Enrichissement FullEnrich À LA DEMANDE (consomme des crédits) : trouve
+    l'email pro vérifié et le téléphone d'UN contact, déclenché au clic dans
+    « Prendre contact manuellement ». Un seul appel remplit email + téléphone."""
+    if not enrichment.est_configure():
+        return jsonify({"erreur": "Enrichissement indisponible : ajoute ta clé "
+                                  "FullEnrich dans les Réglages."}), 400
+    cle = (request.get_json(force=True) or {}).get("cle", "")
+    contact = next((c for c in contacts_store.lister(session["email"])
+                    if contacts_store.cle_contact(c) == cle), None)
+    if not contact:
+        return jsonify({"erreur": "Contact introuvable."}), 404
+
+    resultats = enrichment.enrichir_lot([contact])
+    r = (resultats[0] if resultats else {}) or {}
+    maj = {"enrichissement": "fait"}
+    if r.get("email"):
+        maj["email"] = r["email"]
+        maj["statut_email"] = r.get("statut_email", "")
+    if r.get("telephone"):
+        maj["telephone"] = r["telephone"]
+    contact_maj = contacts_store.mettre_a_jour(session["email"], cle, maj)
+    return jsonify({"ok": True, "contact": contact_maj,
+                    "trouve": bool(r.get("email") or r.get("telephone"))})
 
 
 @app.post("/api/mes-contacts/verifier-nicoka")

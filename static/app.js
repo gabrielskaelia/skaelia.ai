@@ -398,8 +398,11 @@ $("#btnValiderMdp").addEventListener("click", async () => {
   }
 });
 
+let fullenrichConfiguree = false;
+
 async function chargerReglages() {
   const r = await api("/api/reglages");
+  fullenrichConfiguree = !!r.fullenrich_configuree;
   $("#etatSmtp").textContent = r.smtp_configure ? "configuré ✓" : "non configuré";
   return r;
 }
@@ -525,11 +528,8 @@ function dessinerMesContacts() {
       const lienOffre = offres.length
         ? offres.slice(0, 3).map((o) => `<a href="${echapper(o.url)}" target="_blank" rel="noopener" title="${echapper(o.titre)}">${echapper(o.titre || "Voir l'offre")}</a>`).join("<br>")
         : '<span class="txt-faible">—</span>';
-      const enCours = c.enrichissement === "en_cours";
-      const cellEmail = c.email ? echapper(c.email)
-        : (enCours ? '<span class="txt-recherche">🔄 recherche…</span>' : '<span class="txt-faible">—</span>');
-      const cellTel = c.telephone ? echapper(c.telephone)
-        : (enCours ? '<span class="txt-recherche">🔄 recherche…</span>' : '<span class="txt-faible">—</span>');
+      const cellEmail = c.email ? echapper(c.email) : '<span class="txt-faible">—</span>';
+      const cellTel = c.telephone ? echapper(c.telephone) : '<span class="txt-faible">—</span>';
       return `<tr>
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
@@ -545,14 +545,6 @@ function dessinerMesContacts() {
     }).join("") +
     "</tbody>";
 
-  // Rafraîchissement auto tant qu'un enrichissement est en cours
-  if (mesContacts.some((c) => c.enrichissement === "en_cours")) {
-    clearTimeout(_sondageEnrich);
-    _sondageEnrich = setTimeout(async () => {
-      await chargerMesContacts();
-      if (!$("#vueContacts").hidden) dessinerMesContacts();
-    }, 5000);
-  }
   table.querySelectorAll(".btn-prendre").forEach((b) =>
     b.addEventListener("click", () => ouvrirPrendreContact(b.dataset.cle))
   );
@@ -592,7 +584,10 @@ async function ouvrirPrendreContact(cle) {
         <button class="btn btn-primaire btn-petit" id="pcEcrire">Vérifier et écrire l'email →</button>
       </div>
     </div>` : `
-    <div class="option-bloc desactive"><div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — non trouvé</div></div>`;
+    <div class="option-bloc">
+      <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — non trouvé</div>
+      ${boutonEnrichir(c)}
+    </div>`;
 
   // Téléphone
   const rech = encodeURIComponent(`${c.nom} ${c.entreprise} téléphone`);
@@ -604,6 +599,7 @@ async function ouvrirPrendreContact(cle) {
     <div class="option-bloc">
       <div class="option-titre"><span class="oc-icone oc-tel">☎</span> Téléphone — aucun numéro</div>
       <div class="oc-actions">
+        ${boutonEnrichir(c)}
         <a class="btn btn-secondaire btn-petit" href="https://www.google.com/search?q=${rech}" target="_blank" rel="noopener">Chercher</a>
         <button class="btn btn-secondaire btn-petit" id="pcSaisirTel">Saisir le numéro</button>
       </div>
@@ -681,7 +677,32 @@ async function ouvrirPrendreContact(cle) {
     } catch (e) { toast(e.message); }
   });
 
+  // Enrichissement FullEnrich À LA DEMANDE (consomme un crédit) : un seul appel
+  // remplit email + téléphone. Boutons présents dans les blocs Email et Tél.
+  zone.querySelectorAll(".pcEnrichir").forEach((b) => b.addEventListener("click", async () => {
+    zone.querySelectorAll(".pcEnrichir").forEach((x) => { x.disabled = true; x.textContent = "Recherche en cours…"; });
+    try {
+      const r = await post("/api/mes-contacts/enrichir", { cle });
+      const idx = mesContacts.findIndex((x) => cleContact(x) === cle);
+      if (idx >= 0 && r.contact) mesContacts[idx] = r.contact;
+      dessinerMesContacts();
+      toast(r.trouve ? "Coordonnées trouvées ✓" : "FullEnrich n'a rien trouvé pour ce contact.");
+      ouvrirPrendreContact(cle);  // ré-affiche la modale avec email/téléphone remplis
+    } catch (e) {
+      toast(e.message);
+      zone.querySelectorAll(".pcEnrichir").forEach((x) => { x.disabled = false; x.textContent = "Trouver via FullEnrich →"; });
+    }
+  }));
+
   $("#voilePrendreContact").hidden = false;
+}
+
+function boutonEnrichir(c) {
+  if (c.enrichissement === "fait")
+    return '<small class="txt-faible">FullEnrich n\'a pas trouvé cette coordonnée.</small>';
+  if (!fullenrichConfiguree)
+    return '<small class="txt-faible">Enrichissement indisponible : clé FullEnrich manquante (Réglages).</small>';
+  return '<button class="btn btn-primaire btn-petit pcEnrichir">Trouver via FullEnrich →</button>';
 }
 
 function badgeStatutEmail(statut) {
@@ -861,6 +882,7 @@ function nettoyerChampsAuto() {
 [200, 600, 1500].forEach((d) => setTimeout(nettoyerChampsAuto, d));
 
 api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
+api("/api/reglages").then((r) => { fullenrichConfiguree = !!r.fullenrich_configuree; }).catch(() => {});
 chargerMesContacts();
 chargerHistorique();
 detecterExtension();
