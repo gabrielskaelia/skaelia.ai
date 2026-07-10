@@ -206,6 +206,12 @@ def executer(params, log=print):
         offres = _filtrer_teletravail(offres)
         log(f"Filtre télétravail : {len(offres)}/{avant} offres gardées")
 
+    # Offres de cabinets : retrouver l'entreprise cliente citée dans l'annonce
+    # (opt-in). Sans ce réglage, elles restent exclues à la consolidation.
+    if p.get("inclure_cabinets"):
+        from . import cabinets
+        offres = cabinets.reattribuer(offres, p["exclusions"], log)
+
     if not offres:
         log("Aucune offre après collecte/filtres.")
         return {"offres": [], "entreprises": [], "contacts": [], "fichier": "", "nb_nouvelles": 0}

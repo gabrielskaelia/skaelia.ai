@@ -222,6 +222,7 @@ function optionsRecherche() {
     sources: $$("#fSources input:checked").map((c) => c.value),
     types_entreprise: $$("#fTypes input:checked").map((c) => c.value),
     recherche_amelioree: $("#fRechercheAmelioree")?.checked || false,
+    inclure_cabinets: $("#fInclureCabinets")?.checked || false,
   };
 }
 
@@ -428,7 +429,7 @@ function dessinerTable() {
       "<thead><tr><th>Poste</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>
         <td><a href="${echapper(o.url)}" target="_blank" rel="noopener">${echapper(o.titre)}</a></td>
-        <td>${echapper(o.entreprise)}${badgeType(o.type)}</td><td>${echapper(o.lieu)}</td>
+        <td>${echapper(o.entreprise)}${badgeType(o.type)}${o.via_cabinet ? ` <span class="badge badge-neutre" title="Annonce publiée par ${echapper(o.via_cabinet)}">via cabinet</span>` : ""}</td><td>${echapper(o.lieu)}</td>
         <td>${echapper(o.contrat)}</td><td>${echapper(o.salaire)}</td>
         <td>${echapper(o.date)}${o.nouveau ? ' <span class="tag-nouveau">nouveau</span>' : ""}</td><td>${echapper(o.source)}</td></tr>`).join("") +
       "</tbody>";
