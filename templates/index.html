@@ -26,6 +26,10 @@
       </nav>
       <div class="entete-droite">
         <span class="utilisateur-email" id="utilisateurEmail"></span>
+        <button class="chips-connexions" id="chipsConnexions" title="État des connexions — cliquez pour configurer">
+          <span class="chip-cnx" id="chipLinkedin" data-etat="inconnu">in</span>
+          <span class="chip-cnx" id="chipGmail" data-etat="inconnu">@</span>
+        </button>
         <button class="btn btn-discret" id="btnReglages">Réglages</button>
         <button class="btn btn-secondaire" id="btnDeconnexion">Déconnexion</button>
       </div>
@@ -266,6 +270,27 @@
     <div class="modale">
       <h2>Réglages</h2>
 
+      <h2>Connexions</h2>
+      <div class="cnx-bloc">
+        <div class="cnx-ligne">
+          <span class="oc-icone oc-linkedin">in</span>
+          <div class="cnx-texte">
+            <strong>LinkedIn</strong>
+            <span id="cnxLinkedinEtat" class="badge badge-neutre">vérification…</span>
+            <small class="txt-faible" id="cnxLinkedinAide"></small>
+          </div>
+        </div>
+        <div class="cnx-ligne">
+          <span class="oc-icone oc-mail">@</span>
+          <div class="cnx-texte">
+            <strong>Gmail — envoi direct des emails</strong>
+            <span id="cnxGmailEtat" class="badge badge-neutre">vérification…</span>
+            <small class="txt-faible">Configurez la connexion ci-dessous : vos emails de prospection
+            partiront directement au clic, depuis votre adresse.</small>
+          </div>
+        </div>
+      </div>
+
       <h2>Mot de passe</h2>
       <div class="message-info erreur" id="msgMdp" hidden></div>
       <label class="champ">
@@ -281,23 +306,29 @@
       </div>
 
       <hr class="separateur">
-      <h2>Envoi d'emails <span class="badge badge-neutre" id="etatSmtp"></span></h2>
-      <label class="champ">
-        <span class="champ-libelle">Serveur SMTP</span>
-        <input type="text" id="rSmtpHote" placeholder="ex. : smtp.gmail.com">
-      </label>
-      <label class="champ">
-        <span class="champ-libelle">Port</span>
-        <input type="number" id="rSmtpPort" value="587">
-      </label>
+      <h2>Connexion Gmail <span class="badge badge-neutre" id="etatSmtp"></span></h2>
+      <p class="txt-faible">Pour Gmail / Google Workspace : créez un « mot de passe d'application »
+      sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>
+      (ce n'est pas votre mot de passe habituel). Cette connexion est propre à votre compte.</p>
       <label class="champ">
         <span class="champ-libelle">Adresse email d'envoi</span>
         <input type="email" id="rSmtpUtilisateur" placeholder="ex. : gabriel.praud@skaelia.com">
       </label>
       <label class="champ">
-        <span class="champ-libelle">Mot de passe (Gmail : « mot de passe d'application »)</span>
+        <span class="champ-libelle">Mot de passe d'application</span>
         <input type="password" id="rSmtpMdp" placeholder="Laisser vide pour ne pas changer">
       </label>
+      <details class="cnx-avance">
+        <summary class="txt-faible">Réglages avancés (autre fournisseur que Gmail)</summary>
+        <label class="champ">
+          <span class="champ-libelle">Serveur SMTP</span>
+          <input type="text" id="rSmtpHote" placeholder="smtp.gmail.com" value="smtp.gmail.com">
+        </label>
+        <label class="champ">
+          <span class="champ-libelle">Port</span>
+          <input type="number" id="rSmtpPort" value="587">
+        </label>
+      </details>
 
       <hr class="separateur">
       <div class="modale-actions">

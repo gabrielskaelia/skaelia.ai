@@ -22,8 +22,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const appTabId = sender.tab.id;
       const tab = await chrome.tabs.create({ url: msg.profileUrl, active: true });
-      await ecrirePending(tab.id, { id: msg.id, appTabId, message: msg.message });
+      await ecrirePending(tab.id, {
+        id: msg.id, appTabId,
+        message: msg.message,
+        subject: msg.subject || "",   // objet InMail (comptes Premium)
+      });
       sendResponse({ ok: true, queued: true });
+    })();
+    return true;
+  }
+
+  // L'application demande si une session LinkedIn est ouverte dans ce Chrome
+  if (msg.type === "CHECK_LINKEDIN") {
+    (async () => {
+      try {
+        const r = await fetch("https://www.linkedin.com/feed/", {
+          credentials: "include", redirect: "follow",
+        });
+        const u = (r.url || "").toLowerCase();
+        const connecte = r.ok && !u.includes("/login") && !u.includes("authwall")
+                              && !u.includes("uas/") && !u.includes("checkpoint");
+        sendResponse({ connecte });
+      } catch (e) {
+        sendResponse({ connecte: false, error: e.message });
+      }
     })();
     return true;
   }

@@ -36,23 +36,36 @@ def smtp_configure():
     return bool(c.get("hote") and c.get("utilisateur") and c.get("mot_de_passe"))
 
 
-def envoyer(destinataire, sujet, corps_html):
-    """Envoie un email HTML. Retourne (ok, erreur)."""
-    c = _config_smtp()
-    if not smtp_configure():
+def _envoyer_via(conf, destinataire, sujet, corps, type_mime="html"):
+    """Envoie un email via la configuration SMTP donnée. Retourne (ok, erreur)."""
+    if not (conf.get("hote") and conf.get("utilisateur") and conf.get("mot_de_passe")):
         return False, "SMTP non configuré"
-    message = MIMEText(corps_html, "html", "utf-8")
+    message = MIMEText(corps, type_mime, "utf-8")
     message["Subject"] = sujet
-    message["From"] = c.get("expediteur") or c["utilisateur"]
+    message["From"] = conf.get("expediteur") or conf["utilisateur"]
     message["To"] = destinataire
     try:
-        with smtplib.SMTP(c["hote"], int(c.get("port", 587)), timeout=20) as serveur:
+        with smtplib.SMTP(conf["hote"], int(conf.get("port", 587)), timeout=20) as serveur:
             serveur.starttls()
-            serveur.login(c["utilisateur"], c["mot_de_passe"])
+            serveur.login(conf["utilisateur"], conf["mot_de_passe"])
             serveur.send_message(message)
         return True, ""
+    except smtplib.SMTPAuthenticationError:
+        return False, ("Identifiants refusés par le serveur d'envoi. Pour Gmail, "
+                       "utilisez un « mot de passe d'application » "
+                       "(myaccount.google.com/apppasswords).")
     except Exception as e:
         return False, str(e)
+
+
+def envoyer(destinataire, sujet, corps_html):
+    """Envoie un email HTML via le SMTP global (emails de compte). Retourne (ok, erreur)."""
+    return _envoyer_via(_config_smtp(), destinataire, sujet, corps_html, "html")
+
+
+def envoyer_pour(conf_perso, destinataire, sujet, corps_texte):
+    """Envoie un email TEXTE via la connexion Gmail/SMTP d'un utilisateur."""
+    return _envoyer_via(conf_perso or {}, destinataire, sujet, corps_texte, "plain")
 
 
 def _gabarit(titre, corps, lien, libelle_bouton):

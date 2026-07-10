@@ -1,6 +1,7 @@
 /* S'exécute sur chaque page linkedin.com. Au chargement, demande au service
    worker s'il y a un envoi en attente pour cet onglet, puis agit selon la
    page (profil -> ouvrir la messagerie ; messagerie -> écrire + envoyer).
+   Gère aussi la fenêtre InMail des comptes Premium (champ Objet en plus).
    Le script étant ré-injecté à chaque navigation, l'état vit côté background. */
 "use strict";
 
@@ -40,8 +41,32 @@ function trouverZoneMessage() {
       || document.querySelector('[role="textbox"][contenteditable="true"]');
 }
 
+/* Champ « Objet » de la fenêtre InMail (comptes Premium). Absent pour un
+   message classique entre relations : on ne le remplit que s'il existe. */
+function trouverChampObjet() {
+  return document.querySelector('.msg-form input[name="subject"]')
+      || document.querySelector('input[name="subject"]')
+      || document.querySelector('.msg-form input[placeholder*="bjet" i]')
+      || document.querySelector('.msg-form input[aria-label*="bjet" i]')
+      || document.querySelector('.msg-form input[placeholder*="ubject" i]');
+}
+
+/* Fenêtre « Envoyez un message à X avec Premium » : LinkedIn refuse le
+   message et propose un abonnement. On la détecte pour renvoyer une erreur
+   claire au lieu d'attendre dans le vide. */
+function trouverUpsellPremium() {
+  const modale = [...document.querySelectorAll(".artdeco-modal, [role='dialog'], [data-test-modal]")]
+    .find((m) => m.offsetParent !== null);
+  if (!modale) return null;
+  const txt = (modale.innerText || "").toLowerCase();
+  const parlePremium = txt.includes("premium") || txt.includes("inmail");
+  const pasDeZone = !modale.querySelector('[contenteditable="true"]');
+  return parlePremium && pasDeZone ? modale : null;
+}
+
 function trouverBoutonEnvoyer() {
   return document.querySelector("button.msg-form__send-button")
+      || document.querySelector('button[type="submit"].msg-form__send-btn')
       || [...document.querySelectorAll("button")].find((b) => {
            const t = (b.innerText || "").trim().toLowerCase();
            const a = (b.getAttribute("aria-label") || "").toLowerCase();
@@ -60,9 +85,25 @@ function ecrireDans(zone, texte) {
   zone.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-async function remplirEtEnvoyer(zone, message) {
+/* Remplit le champ Objet (InMail) à la manière d'une vraie saisie, pour que
+   LinkedIn active le bouton Envoyer. */
+function ecrireObjet(champ, texte) {
+  champ.focus();
+  champ.select();
+  document.execCommand("insertText", false, texte);
+  champ.dispatchEvent(new Event("input", { bubbles: true }));
+  champ.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+async function remplirEtEnvoyer(zone, pending) {
   await pause(400);
-  ecrireDans(zone, message);
+  // InMail (Premium) : un champ Objet est requis avant l'envoi.
+  const objet = trouverChampObjet();
+  if (objet && !objet.value) {
+    ecrireObjet(objet, pending.subject || "Prise de contact — Skaelia");
+    await pause(300);
+  }
+  ecrireDans(zone, pending.message);
   await pause(700);
   const bouton = await attendre(() => {
     const b = trouverBoutonEnvoyer();
@@ -76,6 +117,21 @@ function envoyerResultat(ok, error) {
   try { chrome.runtime.sendMessage({ type: "DO_RESULT", ok, error: error || "" }); } catch (e) {}
 }
 
+const ERREUR_PREMIUM =
+  "LinkedIn demande un abonnement Premium (InMail) pour écrire à ce profil. "
+  + "Vérifie ton abonnement ou tes crédits InMail.";
+
+/* Attend soit la zone de message, soit la fenêtre d'upsell Premium. */
+function attendreZoneOuUpsell(timeout = 15000) {
+  return attendre(() => {
+    const upsell = trouverUpsellPremium();
+    if (upsell) return { upsell };
+    const zone = trouverZoneMessage();
+    if (zone) return { zone };
+    return null;
+  }, timeout);
+}
+
 (async function init() {
   let pending = null;
   try {
@@ -85,9 +141,10 @@ function envoyerResultat(ok, error) {
 
   try {
     if (location.href.includes("/messaging/")) {
-      // Page de messagerie : écrire et envoyer
-      const zone = await attendre(trouverZoneMessage, 15000);
-      await remplirEtEnvoyer(zone, pending.message);
+      // Page de messagerie : écrire et envoyer (ou détecter le blocage Premium)
+      const r = await attendreZoneOuUpsell(15000);
+      if (r.upsell) { envoyerResultat(false, ERREUR_PREMIUM); return; }
+      await remplirEtEnvoyer(r.zone, pending);
       envoyerResultat(true);
       return;
     }
@@ -99,12 +156,14 @@ function envoyerResultat(ok, error) {
     // Cas 1 : une surimpression s'ouvre sur place -> on l'utilise.
     // Cas 2 : la page navigue vers /messaging/ -> le script se ré-injecte et
     //         c'est la branche ci-dessus qui prendra le relais.
+    // Cas 3 : fenêtre Premium -> erreur claire.
     for (let i = 0; i < 16; i++) {
       await pause(300);
       if (!location.href.includes("/in/")) return; // navigation en cours
+      if (trouverUpsellPremium()) { envoyerResultat(false, ERREUR_PREMIUM); return; }
       const zone = trouverZoneMessage();
       if (zone) {
-        await remplirEtEnvoyer(zone, pending.message);
+        await remplirEtEnvoyer(zone, pending);
         envoyerResultat(true);
         return;
       }

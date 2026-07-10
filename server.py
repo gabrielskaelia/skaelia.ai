@@ -314,11 +314,18 @@ def accueil():
 def lire_reglages():
     config = _config()
     cle = config.get("usebouncer_api_key", "")
+    smtp_perso = auth.lire_smtp_perso(session["email"])
     return jsonify({
         "usebouncer_configuree": bool(cle),
         "fullenrich_configuree": bool(config.get("fullenrich_api_key")),
         "exclusions_cabinets": config.get("exclusions_cabinets", []),
         "smtp_configure": mailer.smtp_configure(),
+        # Connexion Gmail/SMTP propre au compte connecté (envoi direct)
+        "email_perso_configure": bool(smtp_perso.get("utilisateur")
+                                      and smtp_perso.get("mot_de_passe")),
+        "email_perso_adresse": smtp_perso.get("utilisateur", ""),
+        "email_perso_hote": smtp_perso.get("hote", ""),
+        "email_perso_port": smtp_perso.get("port", 587),
     })
 
 
@@ -345,6 +352,29 @@ def ecrire_reglages():
             "expediteur": (smtp.get("utilisateur") or "").strip(),
         }
     _ecrire_config(config)
+    # Connexion Gmail/SMTP personnelle (stockée sur le compte, pas en global)
+    if "smtp_perso" in donnees:
+        auth.ecrire_smtp_perso(session["email"], donnees["smtp_perso"] or {})
+    return jsonify({"ok": True})
+
+
+@app.post("/api/envoyer-email")
+def api_envoyer_email():
+    """Envoie un email de prospection via la connexion Gmail du compte."""
+    donnees = request.get_json(force=True)
+    destinataire = (donnees.get("a") or "").strip()
+    sujet = (donnees.get("sujet") or "").strip() or "Prise de contact — Skaelia"
+    corps = donnees.get("corps") or ""
+    if "@" not in destinataire:
+        return jsonify({"erreur": "Destinataire invalide."}), 400
+    if not corps.strip():
+        return jsonify({"erreur": "Le message est vide."}), 400
+    conf = auth.lire_smtp_perso(session["email"])
+    if not (conf.get("utilisateur") and conf.get("mot_de_passe")):
+        return jsonify({"erreur": "Connexion Gmail non configurée (Réglages)."}), 400
+    ok, erreur = mailer.envoyer_pour(conf, destinataire, sujet, corps)
+    if not ok:
+        return jsonify({"erreur": erreur}), 502
     return jsonify({"ok": True})
 
 

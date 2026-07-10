@@ -25,8 +25,16 @@
         id: data.id,
         profileUrl: data.profileUrl,
         message: data.message,
+        subject: data.subject || "",
       });
       // Le résultat final arrivera via un message SEND_RESULT du background.
+    } else if (data.type === "CHECK_LINKEDIN") {
+      chrome.runtime.sendMessage({ type: "CHECK_LINKEDIN" }, (rep) => {
+        window.postMessage({
+          source: "skaelia-ext", type: "LINKEDIN_STATUS",
+          id: data.id, connecte: !!(rep && rep.connecte),
+        }, "*");
+      });
     }
   });
 

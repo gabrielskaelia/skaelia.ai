@@ -412,3 +412,29 @@ td a:hover { text-decoration: underline; }
   .barre-recherche { flex-direction: column; }
   .barre-recherche .champ-lieu { flex: 1; }
 }
+
+/* ---- Connexions (pastilles d'en-tête + bloc Réglages) ---- */
+.chips-connexions {
+  display: inline-flex; gap: 6px; align-items: center;
+  background: none; border: none; cursor: pointer; padding: 4px;
+}
+.chip-cnx {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  font-size: 11px; font-weight: 800; color: #fff;
+  background: #9aa0a6; position: relative;
+}
+.chip-cnx[data-etat="ok"] { background: var(--ok, #3e6b4f); }
+.chip-cnx[data-etat="ko"] { background: var(--erreur, #96453d); }
+.chip-cnx[data-etat="ko"]::after {
+  content: "!"; position: absolute; top: -4px; right: -4px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #fff; color: var(--erreur, #96453d);
+  font-size: 9px; line-height: 12px; text-align: center;
+  border: 1px solid var(--erreur, #96453d);
+}
+.cnx-bloc { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+.cnx-ligne { display: flex; gap: 10px; align-items: flex-start; }
+.cnx-texte { display: flex; flex-direction: column; gap: 3px; }
+.cnx-avance { margin-top: 6px; }
+.cnx-avance summary { cursor: pointer; }

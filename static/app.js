@@ -131,7 +131,8 @@ window.addEventListener("message", (event) => {
   if (d.type === "READY") {
     extensionPresente = true;
     document.body.classList.add("ext-ok");
-  } else if (d.type === "RESULT" && _attentesExt.has(d.id)) {
+    majChipsConnexions();
+  } else if ((d.type === "RESULT" || d.type === "LINKEDIN_STATUS") && _attentesExt.has(d.id)) {
     _attentesExt.get(d.id)(d);
     _attentesExt.delete(d.id);
   }
@@ -143,17 +144,52 @@ function detecterExtension() {
   window.postMessage({ source: "skaelia-app", type: "PING" }, "*");
 }
 
-/* Envoie le message via l'extension. Retourne une promesse {ok, error}. */
-function envoyerViaExtension(profileUrl, message) {
+/* Envoie le message via l'extension. Retourne une promesse {ok, error}.
+   `subject` sert d'objet InMail pour les comptes LinkedIn Premium. */
+function envoyerViaExtension(profileUrl, message, subject) {
   return new Promise((resolve) => {
     const id = "e" + Date.now() + Math.random().toString(16).slice(2);
     _attentesExt.set(id, resolve);
-    window.postMessage({ source: "skaelia-app", type: "SEND_LINKEDIN", id, profileUrl, message }, "*");
+    window.postMessage({ source: "skaelia-app", type: "SEND_LINKEDIN", id, profileUrl, message,
+                         subject: subject || "Prise de contact — Skaelia" }, "*");
     setTimeout(() => {
       if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ ok: false, error: "délai dépassé" }); }
     }, 45000);
   });
 }
+
+/* Demande à l'extension si une session LinkedIn est ouverte dans ce Chrome. */
+function verifierSessionLinkedin() {
+  return new Promise((resolve) => {
+    if (!extensionPresente) return resolve({ connecte: false, extension: false });
+    const id = "lk" + Date.now() + Math.random().toString(16).slice(2);
+    _attentesExt.set(id, (d) => resolve({ connecte: !!d.connecte, extension: true }));
+    window.postMessage({ source: "skaelia-app", type: "CHECK_LINKEDIN", id }, "*");
+    setTimeout(() => {
+      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ connecte: false, extension: true }); }
+    }, 6000);
+  });
+}
+
+/* ---- Pastilles d'état des connexions (en-tête) ---- */
+
+let emailPersoConfigure = false;
+let emailPersoAdresse = "";
+let sessionLinkedinOk = null;   // null = pas encore vérifié
+
+function peindreChip(el, etat) {  // etat : "ok" | "ko" | "inconnu"
+  if (el) el.dataset.etat = etat;
+}
+
+async function majChipsConnexions() {
+  peindreChip($("#chipGmail"), emailPersoConfigure ? "ok" : "ko");
+  if (!extensionPresente) { peindreChip($("#chipLinkedin"), "ko"); return; }
+  const r = await verifierSessionLinkedin();
+  sessionLinkedinOk = r.connecte;
+  peindreChip($("#chipLinkedin"), r.connecte ? "ok" : "ko");
+}
+
+$("#chipsConnexions")?.addEventListener("click", () => $("#btnReglages").click());
 
 async function copier(texte) {
   try { await navigator.clipboard.writeText(texte); return true; }
@@ -414,8 +450,34 @@ let fullenrichConfiguree = false;
 async function chargerReglages() {
   const r = await api("/api/reglages");
   fullenrichConfiguree = !!r.fullenrich_configuree;
-  $("#etatSmtp").textContent = r.smtp_configure ? "configuré ✓" : "non configuré";
+  emailPersoConfigure = !!r.email_perso_configure;
+  emailPersoAdresse = r.email_perso_adresse || "";
+  $("#etatSmtp").textContent = emailPersoConfigure ? "connectée ✓" : "non connectée";
+  // Pré-remplissage de la connexion Gmail personnelle
+  $("#rSmtpUtilisateur").value = r.email_perso_adresse || "";
+  $("#rSmtpHote").value = r.email_perso_hote || "smtp.gmail.com";
+  $("#rSmtpPort").value = r.email_perso_port || 587;
+  majChipsConnexions();
   return r;
+}
+
+/* États affichés dans le bloc « Connexions » de la modale Réglages */
+async function majBlocConnexions() {
+  const badge = (ok, texteOk, texteKo) =>
+    `<span class="badge ${ok ? "badge-ok" : "badge-erreur"}">${ok ? texteOk : texteKo}</span>`;
+  $("#cnxGmailEtat").outerHTML = `<span id="cnxGmailEtat">${
+    badge(emailPersoConfigure, "connecté ✓" + (emailPersoAdresse ? " — " + echapper(emailPersoAdresse) : ""), "non connecté")}</span>`;
+  if (!extensionPresente) {
+    $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${badge(false, "", "extension non installée")}</span>`;
+    $("#cnxLinkedinAide").textContent = "Installez l'extension Chrome Skaelia (dossier extension-skaelia) puis rechargez la page.";
+    return;
+  }
+  const r = await verifierSessionLinkedin();
+  $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${
+    badge(r.connecte, "connecté ✓", "session LinkedIn fermée")}</span>`;
+  $("#cnxLinkedinAide").textContent = r.connecte
+    ? "L'envoi direct des messages LinkedIn est actif."
+    : "Ouvrez linkedin.com dans un onglet et connectez-vous, puis revenez ici.";
 }
 
 $("#btnReglages").addEventListener("click", async () => {
@@ -423,13 +485,14 @@ $("#btnReglages").addEventListener("click", async () => {
   $("#mAncien").value = ""; $("#mNouveau").value = ""; $("#msgMdp").hidden = true;
   $("#rSmtpMdp").value = "";
   $("#voileReglages").hidden = false;
+  majBlocConnexions();
 });
 $("#btnFermerReglages").addEventListener("click", () => { $("#voileReglages").hidden = true; });
 
 $("#btnSauverReglages").addEventListener("click", async () => {
   const corps = {};
-  if ($("#rSmtpHote").value.trim() || $("#rSmtpUtilisateur").value.trim()) {
-    corps.smtp = {
+  if ($("#rSmtpUtilisateur").value.trim()) {
+    corps.smtp_perso = {
       hote: $("#rSmtpHote").value,
       port: $("#rSmtpPort").value,
       utilisateur: $("#rSmtpUtilisateur").value,
@@ -437,6 +500,7 @@ $("#btnSauverReglages").addEventListener("click", async () => {
     };
   }
   await post("/api/reglages", corps);
+  await chargerReglages();
   toast("Réglages enregistrés ✓");
   $("#voileReglages").hidden = true;
 });
@@ -576,15 +640,18 @@ async function ouvrirPrendreContact(cle) {
     </div>` : `
     <div class="option-bloc desactive"><div class="option-titre"><span class="oc-icone oc-linkedin">in</span> LinkedIn — profil inconnu</div></div>`;
 
-  // Email : vérifier (UseBouncer) puis écrire avec tout pré-rempli
+  // Email : vérifier (UseBouncer) puis envoyer directement (connexion Gmail)
+  // ou, à défaut, ouvrir le brouillon pré-rempli dans la messagerie.
   const blocEmail = c.email ? `
     <div class="option-bloc">
       <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — ${echapper(c.email)}
         <span id="pcStatutEmail">${c.statut_email ? badgeStatutEmail(c.statut_email) : ""}</span></div>
+      ${emailPersoConfigure ? `<textarea class="message-prospect" id="pcMsgEmail" rows="6">${echapper(msg)}</textarea>` : ""}
       <div class="oc-actions">
         <button class="btn btn-secondaire btn-petit" id="pcVerifier">Vérifier</button>
-        <button class="btn btn-primaire btn-petit" id="pcEcrire">Contacter</button>
+        <button class="btn btn-primaire btn-petit" id="pcEcrire">${emailPersoConfigure ? "Envoyer l'email →" : "Contacter"}</button>
       </div>
+      ${emailPersoConfigure ? `<small class="txt-faible">Envoi direct depuis ${echapper(emailPersoAdresse)}.</small>` : ""}
     </div>` : `
     <div class="option-bloc">
       <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — non trouvé</div>
@@ -638,8 +705,21 @@ async function ouvrirPrendreContact(cle) {
     window.location.href = `mailto:${c.email}?subject=${sujet}&body=${corps}`;
   }
 
-  // « Vérifier » = contrôle l'adresse (UseBouncer). « Contacter » = ouvre
-  // simplement le mail pré-rempli, SANS vérification (deux actions distinctes).
+  /* Envoi direct via la connexion Gmail du compte (Réglages > Connexions). */
+  async function envoyerEmailDirect() {
+    const corps = $("#pcMsgEmail")?.value || msg;
+    if (!confirm(`Envoyer cet email à ${c.email} ?`)) return;
+    const btn = $("#pcEcrire");
+    btn.disabled = true; btn.textContent = "Envoi…";
+    try {
+      await post("/api/envoyer-email", { a: c.email, sujet: "Prise de contact — Skaelia", corps });
+      toast("Email envoyé ✓");
+    } catch (e) { toast("Échec de l'envoi : " + e.message); }
+    btn.disabled = false; btn.textContent = "Envoyer l'email →";
+  }
+
+  // « Vérifier » = contrôle l'adresse (UseBouncer). « Contacter/Envoyer » =
+  // envoie directement (connexion Gmail) ou ouvre le brouillon pré-rempli.
   $("#pcVerifier")?.addEventListener("click", async () => {
     $("#pcVerifier").disabled = true;
     $("#pcVerifier").textContent = "Vérification…";
@@ -649,7 +729,7 @@ async function ouvrirPrendreContact(cle) {
     $("#pcVerifier").textContent = "Vérifier";
   });
 
-  $("#pcEcrire")?.addEventListener("click", () => ouvrirEmail());
+  $("#pcEcrire")?.addEventListener("click", () => emailPersoConfigure ? envoyerEmailDirect() : ouvrirEmail());
 
   $("#pcSaisirTel")?.addEventListener("click", async () => {
     const num = prompt(`Numéro de téléphone de ${c.nom} :`, c.telephone || "");
@@ -771,12 +851,14 @@ async function afficherEtape() {
   const msg = await messagePersonnalise(c);
 
   if (canal === "mail" && c.email) {
+    const libelle = emailPersoConfigure ? "Vérifier et envoyer l'email →" : "Vérifier et écrire l'email →";
     $("#etAction").innerHTML = `
       <div class="option-bloc">
         <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — ${echapper(c.email)}
           <span id="etStatutEmail">${c.statut_email ? badgeStatutEmail(c.statut_email) : ""}</span></div>
         <textarea class="message-prospect" id="etMsg" rows="6">${echapper(msg)}</textarea>
-        <button class="btn btn-primaire btn-petit" id="etOuvrir">Vérifier et écrire l'email →</button>
+        <button class="btn btn-primaire btn-petit" id="etOuvrir">${libelle}</button>
+        ${emailPersoConfigure ? `<small class="txt-faible">Envoi direct depuis ${echapper(emailPersoAdresse)}.</small>` : ""}
       </div>`;
   } else if (c.url_linkedin) {
     $("#etAction").innerHTML = `
@@ -804,8 +886,20 @@ async function afficherEtape() {
           if ($("#etStatutEmail")) $("#etStatutEmail").innerHTML = badgeStatutEmail(statut);
         }
       } catch (e) { toast(e.message); }
-      $("#etOuvrir").disabled = false; $("#etOuvrir").textContent = "Vérifier et écrire l'email →";
+      $("#etOuvrir").disabled = false;
+      $("#etOuvrir").textContent = emailPersoConfigure ? "Vérifier et envoyer l'email →" : "Vérifier et écrire l'email →";
       if (statut === "undeliverable" && !confirm("Adresse invalide (non délivrable). Écrire quand même ?")) return;
+      if (emailPersoConfigure) {
+        if (!confirm(`Envoyer cet email à ${cc.email} ?`)) return;
+        $("#etOuvrir").disabled = true; $("#etOuvrir").textContent = "Envoi…";
+        try {
+          await post("/api/envoyer-email", {
+            a: cc.email, sujet: "Prise de contact — Skaelia", corps: $("#etMsg").value });
+          toast("Email envoyé ✓");
+        } catch (e) { toast("Échec de l'envoi : " + e.message); }
+        $("#etOuvrir").disabled = false; $("#etOuvrir").textContent = "Vérifier et envoyer l'email →";
+        return;
+      }
       const sujet = encodeURIComponent("Prise de contact — Skaelia");
       window.location.href = `mailto:${cc.email}?subject=${sujet}&body=${encodeURIComponent($("#etMsg").value)}`;
     } else if (cc.url_linkedin) {
@@ -846,7 +940,7 @@ $$(".nav-onglet").forEach((b) =>
 
 
 api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
-api("/api/reglages").then((r) => { fullenrichConfiguree = !!r.fullenrich_configuree; }).catch(() => {});
+chargerReglages().catch(() => {});
 
 // Recherche améliorée : confirmation dès qu'on coche (consomme des crédits).
 $("#fRechercheAmelioree")?.addEventListener("change", (e) => {
@@ -869,6 +963,7 @@ detecterExtension();
 setTimeout(() => {
   const el = $("#etatExtension");
   if (el) el.textContent = extensionPresente ? "installée ✓ (envoi LinkedIn direct actif)" : "non détectée (envoi LinkedIn manuel)";
+  majChipsConnexions();   // pastilles d'en-tête : LinkedIn + Gmail
 }, 1000);
 
 api("/api/statut").then((s) => {

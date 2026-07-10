@@ -175,6 +175,38 @@ def changer_mot_de_passe(email, ancien, nouveau):
     return True, ""
 
 
+# ------------------------------------------------------- connexion Gmail/SMTP
+
+def lire_smtp_perso(email):
+    """Réglages d'envoi d'emails propres à CE compte (ou {})."""
+    u = _charger().get(_normaliser_email(email))
+    return (u or {}).get("smtp") or {}
+
+
+def ecrire_smtp_perso(email, conf):
+    """Enregistre la connexion Gmail/SMTP du compte. `conf` peut être {} pour
+    débrancher. Le mot de passe vide conserve l'existant."""
+    email = _normaliser_email(email)
+    with _VERROU:
+        utilisateurs = _charger()
+        u = utilisateurs.get(email)
+        if not u:
+            return False
+        if not conf:
+            u.pop("smtp", None)
+        else:
+            existant = u.get("smtp") or {}
+            u["smtp"] = {
+                "hote": (conf.get("hote") or "smtp.gmail.com").strip(),
+                "port": int(conf.get("port") or 587),
+                "utilisateur": (conf.get("utilisateur") or "").strip(),
+                "mot_de_passe": (conf.get("mot_de_passe") or "").strip()
+                                or existant.get("mot_de_passe", ""),
+            }
+        _sauver(utilisateurs)
+    return True
+
+
 def infos_utilisateur(email):
     u = _charger().get(_normaliser_email(email))
     if not u:
