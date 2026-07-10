@@ -1,4 +1,4 @@
-/* Skaelia Prospection — logique client (version simplifiée) */
+/* Skaelia Prospection — logique client */
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
@@ -7,6 +7,9 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 let sondage = null;
 let resultats = null;
 let tableActive = "contacts";
+let mesContacts = [];
+let clesSauvegardees = new Set();
+let _sondageEnrich = null;
 
 /* ---------------- utilitaires ---------------- */
 
@@ -15,7 +18,7 @@ function toast(message) {
   el.className = "toast";
   el.textContent = message;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  setTimeout(() => el.remove(), 3600);
 }
 
 async function api(url, options) {
@@ -40,14 +43,148 @@ function echapper(texte) {
   return div.innerHTML;
 }
 
+function prenomDe(nom) {
+  return (nom || "").trim().split(/\s+/)[0] || "";
+}
+
+/* Message pré-rédigé, personnalisé à partir du contact, de l'offre publiée et
+   de références clients Nicoka (preuve sociale) pertinentes selon le poste. */
+function messageProspection(c, refs) {
+  const prenom = prenomDe(c.nom);
+  const entreprise = c.entreprise || "votre entreprise";
+  const offre = (c.offres && c.offres[0] && c.offres[0].titre)
+    ? c.offres[0].titre.replace(/\s*[HF]\/[HF]\s*$/i, "").trim() : "";
+  const role = c.poste ? c.poste.split("|")[0].trim() : "";
+
+  let reference = "";
+  if (refs && refs.length) {
+    const clients = refs.map((r) => r.client).slice(0, 2);
+    const liste = clients.length === 2 ? `${clients[0]} et ${clients[1]}` : clients[0];
+    reference = ` Nous accompagnons d'ailleurs des entreprises comme ${liste} sur ce type de profils.`;
+  }
+
+  // Accroche adaptée au rôle du contact (issu de son profil LinkedIn)
+  const intro = role
+    ? `Je me permets de vous écrire directement : en tant que ${role}, vous êtes sûrement en première ligne sur les recrutements de ${entreprise}.`
+    : `Je me permets de vous contacter au sujet des recrutements de ${entreprise}.`;
+
+  const besoin = offre
+    ? `J'ai justement vu que ${entreprise} recherche un profil ${offre}.`
+    : `J'ai vu que ${entreprise} recrute en ce moment.`;
+
+  return `Bonjour ${prenom},\n\n`
+    + `${intro}\n\n`
+    + `${besoin} Je travaille chez Skaelia, cabinet de recrutement, et c'est précisément le type de poste `
+    + `sur lequel nous pouvons vous faire gagner du temps.${reference}\n\n`
+    + `Auriez-vous 15 minutes cette semaine pour en échanger ?\n\n`
+    + `Bien à vous,`;
+}
+
+/* Récupère les références clients pertinentes puis compose le message. */
+async function messagePersonnalise(c) {
+  let refs = [];
+  const role = (c.offres && c.offres[0] && c.offres[0].titre) || c.poste || "";
+  if (role) {
+    try { refs = await api("/api/references?poste=" + encodeURIComponent(role)); }
+    catch { refs = []; }
+  }
+  return messageProspection(c, refs);
+}
+
+/* Identifiant public LinkedIn extrait de l'URL du profil */
+function idLinkedin(url) {
+  const m = (url || "").match(/\/in\/([^/?#]+)/i);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
+/* Ouvre la fenêtre de messagerie LinkedIn vers le contact (mode manuel). */
+function ouvrirMessagerieLinkedin(c) {
+  const id = idLinkedin(c.url_linkedin);
+  const url = id
+    ? `https://www.linkedin.com/messaging/compose/?recipient=${encodeURIComponent(id)}`
+    : c.url_linkedin;
+  window.open(url, "_blank", "noopener");
+}
+
+/* ---- Pont avec l'extension Skaelia (envoi LinkedIn automatique) ---- */
+
+let extensionPresente = false;
+const _attentesExt = new Map();
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  const d = event.data;
+  if (!d || d.source !== "skaelia-ext") return;
+  if (d.type === "READY") {
+    extensionPresente = true;
+    document.body.classList.add("ext-ok");
+  } else if (d.type === "RESULT" && _attentesExt.has(d.id)) {
+    _attentesExt.get(d.id)(d);
+    _attentesExt.delete(d.id);
+  }
+});
+
+// Détection au démarrage (l'extension pose aussi un attribut sur <html>)
+function detecterExtension() {
+  if (document.documentElement.getAttribute("data-skaelia-ext") === "1") extensionPresente = true;
+  window.postMessage({ source: "skaelia-app", type: "PING" }, "*");
+}
+
+/* Envoie le message via l'extension. Retourne une promesse {ok, error}. */
+function envoyerViaExtension(profileUrl, message) {
+  return new Promise((resolve) => {
+    const id = "e" + Date.now() + Math.random().toString(16).slice(2);
+    _attentesExt.set(id, resolve);
+    window.postMessage({ source: "skaelia-app", type: "SEND_LINKEDIN", id, profileUrl, message }, "*");
+    setTimeout(() => {
+      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ ok: false, error: "délai dépassé" }); }
+    }, 45000);
+  });
+}
+
+async function copier(texte) {
+  try { await navigator.clipboard.writeText(texte); return true; }
+  catch { return false; }
+}
+
 /* ---------------- lancement & suivi ---------------- */
+
+// Raccourcis de profondeur (propositions cliquables)
+document.querySelectorAll("#suggestionsContacts .chip-offre").forEach((b) =>
+  b.addEventListener("click", () => { $("#fNbContacts").value = b.dataset.val; })
+);
+
+function optionsRecherche() {
+  // Nombre de contacts VISÉ : on ratisse assez d'entreprises (~1,5 contact
+  // trouvé par entreprise en moyenne) et on s'arrête dès la cible atteinte.
+  const nbContacts = parseInt($("#fNbContacts")?.value, 10) || 40;
+  // Vivier d'entreprises large (~1 contact utile par entreprise en moyenne) :
+  // sans coût quand le marché est riche (on s'arrête dès la cible), mais permet
+  // d'atteindre le nombre voulu quand il est mince.
+  const maxEnt = Math.max(4, Math.ceil(nbContacts * 1.4));
+  return {
+    contrats: $$("#fContrats input:checked").map((c) => c.value),
+    region: $("#fRegion")?.value || "",
+    anciennete_jours: $("#fAnciennete")?.value,
+    nb_contacts_cible: nbContacts,
+    pages: Math.min(6, Math.max(1, Math.ceil(maxEnt / 25))),
+    max_entreprises: maxEnt,
+    sources: $$("#fSources input:checked").map((c) => c.value),
+    types_entreprise: $$("#fTypes input:checked").map((c) => c.value),
+    teletravail_uniquement: $("#fTeletravail")?.checked || false,
+  };
+}
 
 async function lancerRecherche() {
   const poste = $("#fPoste").value.trim();
   const lieu = $("#fLieu").value.trim();
-  if (!poste) { toast("Indiquez le poste recherché."); $("#fPoste").focus(); return; }
+  const secteur = $("#fSecteur")?.value || "";
+  if (!poste && !secteur) { toast("Indiquez un poste ou choisissez un secteur."); $("#fPoste").focus(); return; }
+  const opts = optionsRecherche();
+  if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/Indeed)."); return; }
+  if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
   try {
-    await post("/api/lancer", { poste, lieu });
+    await post("/api/lancer", { poste, lieu, secteur, ...opts });
   } catch (e) { toast(e.message); return; }
 
   $("#btnLancer").disabled = true;
@@ -83,7 +220,7 @@ async function interrogerStatut() {
   }
 }
 
-/* ---------------- résultats ---------------- */
+/* ---------------- résultats de recherche ---------------- */
 
 async function afficherResultats(statut) {
   resultats = await api("/api/resultats");
@@ -98,25 +235,74 @@ async function afficherResultats(statut) {
   $$(".onglet").forEach((b) => b.classList.toggle("actif", b.dataset.table === tableActive));
   dessinerTable();
   $("#vueResultats").hidden = false;
+  chargerHistorique();
 }
+
+/* ---------------- recherches enregistrées ---------------- */
+
+async function chargerHistorique() {
+  let liste;
+  try { liste = await api("/api/historique"); } catch { return; }
+  const bloc = $("#blocHistorique");
+  const grille = $("#grilleHistorique");
+  if (!liste || !liste.length) { bloc.hidden = true; return; }
+  grille.innerHTML = liste.map((h) => `
+    <div class="carte-histo-conteneur">
+      <button class="carte-histo" data-fichier="${echapper(h.fichier)}">
+        <span class="histo-titre">${echapper(h.titre)}</span>
+        <span class="histo-date">${echapper(h.date)}</span>
+        <span class="histo-stats"><b>${h.nb_contacts}</b> contacts · <b>${h.nb_entreprises}</b> entreprises · <b>${h.nb_offres}</b> offres</span>
+      </button>
+      <button class="histo-suppr" data-suppr="${echapper(h.fichier)}" title="Supprimer cette recherche">✕</button>
+    </div>`).join("");
+  grille.querySelectorAll(".carte-histo").forEach((b) =>
+    b.addEventListener("click", () => ouvrirHistorique(b.dataset.fichier))
+  );
+  grille.querySelectorAll(".histo-suppr").forEach((b) =>
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await api("/api/historique/" + encodeURIComponent(b.dataset.suppr), { method: "DELETE" });
+      chargerHistorique();
+    })
+  );
+  bloc.hidden = false;
+}
+
+async function ouvrirHistorique(fichier) {
+  try {
+    resultats = await api("/api/historique/" + encodeURIComponent(fichier));
+  } catch (e) { toast(e.message); return; }
+  $("#statsResultats").innerHTML = `
+    <div class="stat"><span class="stat-nombre">${resultats.contacts.length}</span><span class="stat-libelle">contacts</span></div>
+    <div class="stat"><span class="stat-nombre">${resultats.entreprises.length}</span><span class="stat-libelle">entreprises</span></div>
+    <div class="stat"><span class="stat-nombre">${resultats.offres.length}</span><span class="stat-libelle">offres</span></div>
+    <div class="stat"><span class="stat-nombre">${resultats.nb_nouvelles}</span><span class="stat-libelle">nouvelles offres</span></div>`;
+  tableActive = resultats.contacts.length ? "contacts" : "offres";
+  $$(".onglet").forEach((b) => b.classList.toggle("actif", b.dataset.table === tableActive));
+  $("#barreContacts").hidden = tableActive !== "contacts";
+  dessinerTable();
+  $("#blocSuivi").hidden = true;
+  $("#vueResultats").hidden = false;
+  $("#vueResultats").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("#btnViderHistorique")?.addEventListener("click", async () => {
+  if (!confirm("Supprimer toutes les recherches enregistrées ?")) return;
+  await api("/api/historique", { method: "DELETE" });
+  chargerHistorique();
+  toast("Recherches supprimées");
+});
 
 $$(".onglet").forEach((b) =>
   b.addEventListener("click", () => {
     $$(".onglet").forEach((x) => x.classList.remove("actif"));
     b.classList.add("actif");
     tableActive = b.dataset.table;
+    $("#barreContacts").hidden = tableActive !== "contacts";
     dessinerTable();
   })
 );
 
-function badgeStatutEmail(statut) {
-  if (!statut) return "";
-  if (statut === "deliverable") return '<span class="badge badge-ok">vérifié</span>';
-  if (statut === "risky") return '<span class="badge badge-moyen">incertain</span>';
-  return `<span class="badge badge-neutre">${echapper(statut)}</span>`;
-}
-
-/* Offres de l'entreprise d'un contact : liste "titre (lien)" */
 function offresDeLEntreprise(nomEntreprise) {
   const offres = resultats.offres.filter((o) => o.entreprise === nomEntreprise);
   if (!offres.length) return "";
@@ -128,38 +314,66 @@ function offresDeLEntreprise(nomEntreprise) {
      </div>`).join("") + (offres.length > 4 ? `<span class="badge badge-neutre">+${offres.length - 4} autres</span>` : "");
 }
 
+function badgeType(type) {
+  if (type === "client") return ' <span class="badge badge-client">Client</span>';
+  if (type === "prospect") return ' <span class="badge badge-prospect">Prospect</span>';
+  return "";
+}
+
 function dessinerTable() {
   const table = $("#tableResultats");
   if (!resultats) return;
 
   if (tableActive === "contacts") {
+    $("#barreContacts").hidden = false;
     if (!resultats.contacts.length) {
-      table.innerHTML = "<tbody><tr><td style='padding:24px'>Aucun contact trouvé pour cette recherche.</td></tr></tbody>";
+      $("#barreContacts").hidden = true;
+      table.innerHTML = "<tbody><tr><td style='padding:24px'>Aucun contact dans cette recherche.</td></tr></tbody>";
       return;
     }
+    const visibles = resultats.contacts.map((c, i) => ({ c, i }));
     table.innerHTML =
-      "<thead><tr><th>Contact</th><th>Poste du contact</th><th>Entreprise</th><th>Recrute actuellement</th><th>LinkedIn</th><th>Email</th><th></th></tr></thead><tbody>" +
-      resultats.contacts.map((c) => `<tr>
+      "<thead><tr><th></th><th>Contact</th><th>Poste du contact</th><th>Entreprise</th><th>Recrute actuellement</th><th>LinkedIn</th><th></th></tr></thead><tbody>" +
+      visibles.map(({ c, i }) => {
+        const dansCarnet = clesSauvegardees.has(cleContact(c));
+        return `<tr>
+        <td>${dansCarnet
+            ? '<span class="badge badge-ok">ajouté ✓</span>'
+            : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`}</td>
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
-        <td>${echapper(c.entreprise)}</td>
+        <td>${echapper(c.entreprise)}${badgeType(c.type)}</td>
         <td class="cellule-postes">${offresDeLEntreprise(c.entreprise)}</td>
         <td><a href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil</a></td>
-        <td>${echapper(c.email || "")}</td>
-        <td>${badgeStatutEmail(c.statut_email)}</td></tr>`).join("") +
+        <td><button class="btn-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button></td></tr>`;
+      }).join("") +
       "</tbody>";
+    table.querySelectorAll(".btn-ajout").forEach((b) =>
+      b.addEventListener("click", () => ajouterContacts([resultats.contacts[+b.dataset.idx]]))
+    );
+    table.querySelectorAll(".btn-suppr").forEach((b) =>
+      b.addEventListener("click", () => {
+        resultats.contacts.splice(+b.dataset.suppr, 1);
+        dessinerTable();
+      })
+    );
   } else {
+    $("#barreContacts").hidden = true;
     table.innerHTML =
-      "<thead><tr><th></th><th>Poste</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
+      "<thead><tr><th>Poste</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>
-        <td>${o.nouveau ? '<span class="badge badge-nouveau">NOUVEAU</span>' : ""}</td>
         <td><a href="${echapper(o.url)}" target="_blank" rel="noopener">${echapper(o.titre)}</a></td>
-        <td>${echapper(o.entreprise)}</td><td>${echapper(o.lieu)}</td>
+        <td>${echapper(o.entreprise)}${badgeType(o.type)}</td><td>${echapper(o.lieu)}</td>
         <td>${echapper(o.contrat)}</td><td>${echapper(o.salaire)}</td>
-        <td>${echapper(o.date)}</td><td>${echapper(o.source)}</td></tr>`).join("") +
+        <td>${echapper(o.date)}${o.nouveau ? ' <span class="tag-nouveau">nouveau</span>' : ""}</td><td>${echapper(o.source)}</td></tr>`).join("") +
       "</tbody>";
   }
 }
+
+$("#btnRetourRecherche")?.addEventListener("click", () => {
+  $("#vueResultats").hidden = true;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 /* ---------------- compte ---------------- */
 
@@ -168,16 +382,15 @@ $("#btnDeconnexion").addEventListener("click", async () => {
   location.href = "/connexion";
 });
 
-$("#btnChangerMdp").addEventListener("click", () => {
-  $("#msgMdp").hidden = true;
-  $("#mAncien").value = ""; $("#mNouveau").value = "";
-  $("#voileMdp").hidden = false;
-});
-$("#btnFermerMdp").addEventListener("click", () => { $("#voileMdp").hidden = true; });
+/* ---------------- réglages (mot de passe + envoi d'emails) ---------------- */
+
 $("#btnValiderMdp").addEventListener("click", async () => {
+  const ancien = $("#mAncien").value, nouveau = $("#mNouveau").value;
+  if (!ancien && !nouveau) return;   // rien à changer
   try {
-    await post("/api/changer-mdp", { ancien: $("#mAncien").value, nouveau: $("#mNouveau").value });
-    $("#voileMdp").hidden = true;
+    await post("/api/changer-mdp", { ancien, nouveau });
+    $("#mAncien").value = ""; $("#mNouveau").value = "";
+    $("#msgMdp").hidden = true;
     toast("Mot de passe changé ✓");
   } catch (e) {
     const msg = $("#msgMdp");
@@ -185,28 +398,22 @@ $("#btnValiderMdp").addEventListener("click", async () => {
   }
 });
 
-/* ---------------- réglages ---------------- */
-
 async function chargerReglages() {
   const r = await api("/api/reglages");
-  $("#rExclusions").value = (r.exclusions_cabinets || []).join("\n");
-  $("#etatCle").textContent = r.usebouncer_configuree ? "— configurée ✓" : "— non configurée";
   $("#etatSmtp").textContent = r.smtp_configure ? "configuré ✓" : "non configuré";
   return r;
 }
 
 $("#btnReglages").addEventListener("click", async () => {
   await chargerReglages();
-  $("#rCle").value = ""; $("#rSmtpMdp").value = "";
+  $("#mAncien").value = ""; $("#mNouveau").value = ""; $("#msgMdp").hidden = true;
+  $("#rSmtpMdp").value = "";
   $("#voileReglages").hidden = false;
 });
 $("#btnFermerReglages").addEventListener("click", () => { $("#voileReglages").hidden = true; });
 
 $("#btnSauverReglages").addEventListener("click", async () => {
-  const corps = {
-    exclusions_cabinets: $("#rExclusions").value.split("\n").map((l) => l.trim()).filter(Boolean),
-  };
-  if ($("#rCle").value.trim()) corps.usebouncer_api_key = $("#rCle").value.trim();
+  const corps = {};
   if ($("#rSmtpHote").value.trim() || $("#rSmtpUtilisateur").value.trim()) {
     corps.smtp = {
       hote: $("#rSmtpHote").value,
@@ -220,15 +427,448 @@ $("#btnSauverReglages").addEventListener("click", async () => {
   $("#voileReglages").hidden = true;
 });
 
+/* ---------------- carnet « Mes contacts » ---------------- */
+
+function cleContact(c) {
+  const url = (c.url_linkedin || "").split("?")[0].replace(/\/+$/, "").toLowerCase();
+  if (url) return url;
+  return `${(c.nom || "").trim().toLowerCase()}@${(c.entreprise || "").trim().toLowerCase()}`;
+}
+
+function majCompteurContacts() {
+  const pastille = $("#compteurContacts");
+  pastille.textContent = mesContacts.length;
+  pastille.hidden = mesContacts.length === 0;
+}
+
+async function chargerMesContacts() {
+  try { mesContacts = await api("/api/mes-contacts"); }
+  catch { mesContacts = []; }
+  clesSauvegardees = new Set(mesContacts.map(cleContact));
+  majCompteurContacts();
+}
+
+/* Attache à un contact les offres publiées par son entreprise (lien retour) */
+function enrichirOffres(c) {
+  if (!resultats || !resultats.offres) return c;
+  const offres = resultats.offres
+    .filter((o) => o.entreprise === c.entreprise)
+    .map((o) => ({ titre: o.titre, url: o.url }));
+  return { ...c, offres };
+}
+
+async function ajouterContacts(contacts) {
+  try {
+    contacts = contacts.map(enrichirOffres);
+    const r = await post("/api/mes-contacts", { contacts });
+    mesContacts = r.contacts;
+    clesSauvegardees = new Set(mesContacts.map(cleContact));
+    majCompteurContacts();
+    if (r.ajoutes === 0) toast("Déjà dans vos contacts.");
+    else {
+      const verif = r.nicoka_ok ? " — vérifié dans Nicoka" : " (Nicoka non synchronisé)";
+      toast((r.ajoutes === 1 ? "Contact ajouté ✓" : `${r.ajoutes} contacts ajoutés ✓`) + verif);
+    }
+    // Avertissement Nicoka : déjà contactés récemment
+    if (r.recents_nicoka && r.recents_nicoka.length) {
+      const noms = r.recents_nicoka.map((x) => `${x.nom} (${x.jours}j)`).join(", ");
+      toast(`⚠ Déjà contacté(s) dans Nicoka sous ${r.jours}j : ${noms}`);
+    }
+    if (tableActive === "contacts" && !$("#vueResultats").hidden) dessinerTable();
+  } catch (e) { toast(e.message); }
+}
+
+async function supprimerContact(cle) {
+  try {
+    const r = await post("/api/mes-contacts/supprimer", { cles: [cle] });
+    mesContacts = r.contacts;
+    clesSauvegardees = new Set(mesContacts.map(cleContact));
+    majCompteurContacts();
+    dessinerMesContacts();
+    if (resultats && tableActive === "contacts" && !$("#vueResultats").hidden) dessinerTable();
+  } catch (e) { toast(e.message); }
+}
+
+$("#btnToutAjouter")?.addEventListener("click", () => {
+  if (resultats && resultats.contacts.length) ajouterContacts(resultats.contacts);
+});
+
+$("#btnToutSupprimer")?.addEventListener("click", () => {
+  if (!resultats || !resultats.contacts.length) return;
+  if (!confirm("Supprimer tous les contacts trouvés de cette liste ?")) return;
+  resultats.contacts = [];
+  dessinerTable();
+});
+
+function dessinerMesContacts() {
+  const table = $("#tableMesContacts");
+  const vide = $("#contactsVide");
+  const actions = $("#actionsContacts");
+  if (!mesContacts.length) {
+    table.innerHTML = "";
+    $("#carteMesContacts").hidden = true;
+    actions.hidden = true;
+    vide.hidden = false;
+    return;
+  }
+  $("#carteMesContacts").hidden = false;
+  actions.hidden = false;
+  vide.hidden = true;
+  table.innerHTML =
+    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th>Nicoka</th><th></th><th></th></tr></thead><tbody>" +
+    mesContacts.map((c) => {
+      const cle = cleContact(c);
+      const offres = c.offres || [];
+      const lienLinkedin = c.url_linkedin
+        ? `<a href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil</a>`
+        : '<span class="txt-faible">—</span>';
+      const lienOffre = offres.length
+        ? offres.slice(0, 3).map((o) => `<a href="${echapper(o.url)}" target="_blank" rel="noopener" title="${echapper(o.titre)}">${echapper(o.titre || "Voir l'offre")}</a>`).join("<br>")
+        : '<span class="txt-faible">—</span>';
+      const enCours = c.enrichissement === "en_cours";
+      const cellEmail = c.email ? echapper(c.email)
+        : (enCours ? '<span class="txt-recherche">🔄 recherche…</span>' : '<span class="txt-faible">—</span>');
+      const cellTel = c.telephone ? echapper(c.telephone)
+        : (enCours ? '<span class="txt-recherche">🔄 recherche…</span>' : '<span class="txt-faible">—</span>');
+      return `<tr>
+        <td><strong>${echapper(c.nom)}</strong></td>
+        <td>${echapper(c.poste)}</td>
+        <td>${echapper(c.entreprise)}</td>
+        <td class="cellule-offre">${lienOffre}</td>
+        <td>${lienLinkedin}</td>
+        <td>${cellEmail}</td>
+        <td>${cellTel}</td>
+        <td>${badgeNicoka(c.nicoka)}</td>
+        <td><button class="btn btn-primaire btn-petit btn-prendre" data-cle="${echapper(cle)}">Prendre contact manuellement</button></td>
+        <td><button class="btn-suppr" data-cle="${echapper(cle)}" title="Retirer">✕</button></td>
+      </tr>`;
+    }).join("") +
+    "</tbody>";
+
+  // Rafraîchissement auto tant qu'un enrichissement est en cours
+  if (mesContacts.some((c) => c.enrichissement === "en_cours")) {
+    clearTimeout(_sondageEnrich);
+    _sondageEnrich = setTimeout(async () => {
+      await chargerMesContacts();
+      if (!$("#vueContacts").hidden) dessinerMesContacts();
+    }, 5000);
+  }
+  table.querySelectorAll(".btn-prendre").forEach((b) =>
+    b.addEventListener("click", () => ouvrirPrendreContact(b.dataset.cle))
+  );
+  table.querySelectorAll(".btn-suppr").forEach((b) =>
+    b.addEventListener("click", () => supprimerContact(b.dataset.cle))
+  );
+}
+
+/* ---- Prendre contact manuellement : LinkedIn / Mail / Téléphone ---- */
+
+async function ouvrirPrendreContact(cle) {
+  const c = mesContacts.find((x) => cleContact(x) === cle);
+  if (!c) return;
+  $("#pcTitre").textContent = "Prendre contact manuellement — " + c.nom;
+  $("#pcSousTitre").textContent = [c.poste, c.entreprise].filter(Boolean).join(" · ");
+
+  const msg = await messagePersonnalise(c);
+  const zone = $("#optionsContact");
+
+  // LinkedIn : ouvre la messagerie du profil + copie le message pré-rédigé
+  const blocLinkedin = c.url_linkedin ? `
+    <div class="option-bloc">
+      <div class="option-titre"><span class="oc-icone oc-linkedin">in</span> LinkedIn</div>
+      <textarea class="message-prospect" id="pcMsgLinkedin" rows="6">${echapper(msg)}</textarea>
+      <button class="btn btn-primaire btn-petit" id="pcLinkedin">Envoyer sur LinkedIn →</button>
+      <small class="txt-faible">La fenêtre de message LinkedIn s'ouvre avec le texte copié : colle (Ctrl+V) et envoie.</small>
+    </div>` : `
+    <div class="option-bloc desactive"><div class="option-titre"><span class="oc-icone oc-linkedin">in</span> LinkedIn — profil inconnu</div></div>`;
+
+  // Email : vérifier (UseBouncer) puis écrire avec tout pré-rempli
+  const blocEmail = c.email ? `
+    <div class="option-bloc">
+      <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — ${echapper(c.email)}
+        <span id="pcStatutEmail">${c.statut_email ? badgeStatutEmail(c.statut_email) : ""}</span></div>
+      <div class="oc-actions">
+        <button class="btn btn-secondaire btn-petit" id="pcVerifier">Vérifier l'email</button>
+        <button class="btn btn-primaire btn-petit" id="pcEcrire">Vérifier et écrire l'email →</button>
+      </div>
+    </div>` : `
+    <div class="option-bloc desactive"><div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — non trouvé</div></div>`;
+
+  // Téléphone
+  const rech = encodeURIComponent(`${c.nom} ${c.entreprise} téléphone`);
+  const blocTel = c.telephone ? `
+    <div class="option-bloc">
+      <div class="option-titre"><span class="oc-icone oc-tel">☎</span> Téléphone — ${echapper(c.telephone)}</div>
+      <a class="btn btn-primaire btn-petit" href="tel:${echapper(c.telephone.replace(/\s/g, ""))}">Appeler</a>
+    </div>` : `
+    <div class="option-bloc">
+      <div class="option-titre"><span class="oc-icone oc-tel">☎</span> Téléphone — aucun numéro</div>
+      <div class="oc-actions">
+        <a class="btn btn-secondaire btn-petit" href="https://www.google.com/search?q=${rech}" target="_blank" rel="noopener">Chercher</a>
+        <button class="btn btn-secondaire btn-petit" id="pcSaisirTel">Saisir le numéro</button>
+      </div>
+    </div>`;
+
+  zone.innerHTML = blocLinkedin + blocEmail + blocTel;
+
+  $("#pcLinkedin")?.addEventListener("click", async () => {
+    const texte = $("#pcMsgLinkedin").value;
+    if (extensionPresente && c.url_linkedin) {
+      const btn = $("#pcLinkedin");
+      btn.disabled = true; btn.textContent = "Envoi en cours…";
+      const r = await envoyerViaExtension(c.url_linkedin, texte);
+      btn.disabled = false; btn.textContent = "Envoyer sur LinkedIn →";
+      toast(r.ok ? "Message envoyé sur LinkedIn ✓" : "Échec de l'envoi : " + (r.error || "inconnu"));
+    } else {
+      const ok = await copier(texte);
+      ouvrirMessagerieLinkedin(c);
+      toast(ok ? "Message copié — colle-le (Ctrl+V) et envoie" : "Rédige ton message dans LinkedIn");
+    }
+  });
+
+  async function verifierEmail() {
+    const r = await post("/api/verifier-email", { email: c.email, cle });
+    $("#pcStatutEmail").innerHTML = badgeStatutEmail(r.statut);
+    const idx = mesContacts.findIndex((x) => cleContact(x) === cle);
+    if (idx >= 0) mesContacts[idx].statut_email = r.statut;
+    return r.statut;
+  }
+
+  function ouvrirEmail() {
+    const sujet = encodeURIComponent("Prise de contact — Skaelia");
+    const corps = encodeURIComponent(msg);
+    window.location.href = `mailto:${c.email}?subject=${sujet}&body=${corps}`;
+  }
+
+  $("#pcVerifier")?.addEventListener("click", async () => {
+    $("#pcVerifier").disabled = true;
+    $("#pcVerifier").textContent = "Vérification…";
+    try { toast("Email : " + traduireStatut(await verifierEmail())); }
+    catch (e) { toast(e.message); }
+    $("#pcVerifier").disabled = false;
+    $("#pcVerifier").textContent = "Vérifier l'email";
+  });
+
+  $("#pcEcrire")?.addEventListener("click", async () => {
+    $("#pcEcrire").disabled = true;
+    $("#pcEcrire").textContent = "Vérification…";
+    let statut = c.statut_email;
+    try {
+      // On ne consomme un crédit que si l'email n'a pas déjà été vérifié
+      if (!["deliverable", "risky", "undeliverable"].includes(statut)) {
+        statut = await verifierEmail();
+      }
+    } catch (e) { toast(e.message); }
+    $("#pcEcrire").disabled = false;
+    $("#pcEcrire").textContent = "Vérifier et écrire l'email →";
+    if (statut === "undeliverable") {
+      if (!confirm("Cette adresse semble invalide (non délivrable). Écrire quand même ?")) return;
+    } else {
+      toast("Email " + traduireStatut(statut) + " — message pré-rempli");
+    }
+    ouvrirEmail();  // sujet + message personnalisé déjà remplis
+  });
+
+  $("#pcSaisirTel")?.addEventListener("click", async () => {
+    const num = prompt(`Numéro de téléphone de ${c.nom} :`, c.telephone || "");
+    if (num === null) return;
+    try {
+      const r = await post("/api/mes-contacts/maj", { cle, telephone: num });
+      const idx = mesContacts.findIndex((x) => cleContact(x) === cle);
+      if (idx >= 0) mesContacts[idx] = r.contact;
+      dessinerMesContacts();
+      ouvrirPrendreContact(cle);
+    } catch (e) { toast(e.message); }
+  });
+
+  $("#voilePrendreContact").hidden = false;
+}
+
+function badgeStatutEmail(statut) {
+  if (!statut) return "";
+  if (statut === "deliverable") return '<span class="badge badge-ok">délivrable ✓</span>';
+  if (statut === "risky") return '<span class="badge badge-moyen">incertain</span>';
+  if (statut === "undeliverable") return '<span class="badge badge-erreur">invalide</span>';
+  return `<span class="badge badge-neutre">${echapper(statut)}</span>`;
+}
+function traduireStatut(s) {
+  return { deliverable: "délivrable", risky: "incertain", undeliverable: "invalide", unknown: "inconnu" }[s] || s;
+}
+
+/* Badge du statut Nicoka enregistré à l'ajout du contact.
+   « non prospecté » = pas contacté dans les 50 derniers jours (absent de la
+   base OU dernière action ancienne). « déjà contacté » = action récente. */
+function badgeNicoka(nk) {
+  if (!nk || !nk.verifie) return '<span class="txt-faible">—</span>';
+  if (nk.recent) {
+    const j = nk.jours != null ? ` (${nk.jours}j)` : "";
+    return `<span class="badge badge-erreur">déjà contacté${j}</span>`;
+  }
+  return '<span class="badge badge-ok">non prospecté</span>';
+}
+
+$("#btnFermerPrendreContact").addEventListener("click", () => { $("#voilePrendreContact").hidden = true; });
+$("#voilePrendreContact").addEventListener("click", (e) => {
+  if (e.target === $("#voilePrendreContact")) $("#voilePrendreContact").hidden = true;
+});
+
+$("#btnExportContacts")?.addEventListener("click", () => { location.href = "/api/mes-contacts/export"; });
+
+$("#btnVerifierNicoka")?.addEventListener("click", async () => {
+  const btn = $("#btnVerifierNicoka");
+  btn.disabled = true; btn.textContent = "Vérification…";
+  try {
+    const r = await post("/api/mes-contacts/verifier-nicoka");
+    mesContacts = r.contacts;
+    dessinerMesContacts();
+    $("#infoNicoka").textContent =
+      `${r.non_prospectes} non prospecté(s) · ${r.deja_contactes} déjà contacté(s) sous ${r.jours}j`;
+    toast(`Vérifié : ${r.total} contact(s) dans Nicoka ✓`);
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = "Vérifier dans Nicoka";
+});
+
+/* ---- Tout prospecter : sélection + canal + parcours étape par étape ---- */
+
+let fileProspection = [];
+let etapeIdx = 0;
+
+$("#btnToutProspecter")?.addEventListener("click", () => {
+  const liste = $("#prListe");
+  liste.innerHTML = mesContacts.map((c) => {
+    const cle = cleContact(c);
+    const canalDefaut = c.email ? "mail" : "linkedin";
+    return `<div class="prospect-item">
+      <label class="prospect-check"><input type="checkbox" class="pr-sel" data-cle="${echapper(cle)}" checked>
+        <span><strong>${echapper(c.nom)}</strong> <small>${echapper(c.entreprise)}</small></span></label>
+      <div class="pr-canaux">
+        <label class="pr-canal"><input type="radio" name="canal-${echapper(cle)}" value="mail" ${canalDefaut === "mail" ? "checked" : ""} ${c.email ? "" : "disabled"}><span>Mail</span></label>
+        <label class="pr-canal"><input type="radio" name="canal-${echapper(cle)}" value="linkedin" ${canalDefaut === "linkedin" ? "checked" : ""} ${c.url_linkedin ? "" : "disabled"}><span>LinkedIn</span></label>
+      </div>
+    </div>`;
+  }).join("");
+  $("#voileProspecter").hidden = false;
+});
+
+$("#btnFermerProspecter").addEventListener("click", () => { $("#voileProspecter").hidden = true; });
+
+$("#btnLancerProspection").addEventListener("click", () => {
+  fileProspection = [];
+  $$("#prListe .pr-sel").forEach((chk) => {
+    if (!chk.checked) return;
+    const cle = chk.dataset.cle;
+    const c = mesContacts.find((x) => cleContact(x) === cle);
+    if (!c) return;
+    const canal = $(`input[name="canal-${cle}"]:checked`)?.value || (c.email ? "mail" : "linkedin");
+    fileProspection.push({ contact: c, canal });
+  });
+  if (!fileProspection.length) { toast("Sélectionne au moins un contact."); return; }
+  $("#voileProspecter").hidden = true;
+  etapeIdx = 0;
+  afficherEtape();
+});
+
+async function afficherEtape() {
+  if (etapeIdx < 0) etapeIdx = 0;
+  if (etapeIdx >= fileProspection.length) { $("#voileEtape").hidden = true; toast("Prospection terminée ✓"); return; }
+  const { contact: c, canal } = fileProspection[etapeIdx];
+  $("#etProgression").textContent = `Contact ${etapeIdx + 1} / ${fileProspection.length}`;
+  $("#etNom").textContent = c.nom;
+  $("#etPoste").textContent = [c.poste, c.entreprise].filter(Boolean).join(" · ");
+  const msg = await messagePersonnalise(c);
+
+  if (canal === "mail" && c.email) {
+    $("#etAction").innerHTML = `
+      <div class="option-bloc">
+        <div class="option-titre"><span class="oc-icone oc-mail">@</span> Email — ${echapper(c.email)}
+          <span id="etStatutEmail">${c.statut_email ? badgeStatutEmail(c.statut_email) : ""}</span></div>
+        <textarea class="message-prospect" id="etMsg" rows="6">${echapper(msg)}</textarea>
+        <button class="btn btn-primaire btn-petit" id="etOuvrir">Vérifier et écrire l'email →</button>
+      </div>`;
+  } else if (c.url_linkedin) {
+    $("#etAction").innerHTML = `
+      <div class="option-bloc">
+        <div class="option-titre"><span class="oc-icone oc-linkedin">in</span> LinkedIn</div>
+        <textarea class="message-prospect" id="etMsg" rows="6">${echapper(msg)}</textarea>
+        <button class="btn btn-primaire btn-petit" id="etOuvrir">Envoyer sur LinkedIn →</button>
+      </div>`;
+  } else {
+    $("#etAction").innerHTML = `<div class="option-bloc desactive"><div class="option-titre">Aucun canal disponible pour ce contact</div></div>`;
+  }
+
+  $("#etOuvrir")?.addEventListener("click", async () => {
+    const { contact: cc, canal: cn } = fileProspection[etapeIdx];
+    if (cn === "mail" && cc.email) {
+      $("#etOuvrir").disabled = true; $("#etOuvrir").textContent = "Vérification…";
+      let statut = cc.statut_email;
+      try {
+        if (!["deliverable", "risky", "undeliverable"].includes(statut)) {
+          const r = await post("/api/verifier-email", { email: cc.email, cle: cleContact(cc) });
+          statut = r.statut;
+          cc.statut_email = statut;
+          const idx = mesContacts.findIndex((x) => cleContact(x) === cleContact(cc));
+          if (idx >= 0) mesContacts[idx].statut_email = statut;
+          if ($("#etStatutEmail")) $("#etStatutEmail").innerHTML = badgeStatutEmail(statut);
+        }
+      } catch (e) { toast(e.message); }
+      $("#etOuvrir").disabled = false; $("#etOuvrir").textContent = "Vérifier et écrire l'email →";
+      if (statut === "undeliverable" && !confirm("Adresse invalide (non délivrable). Écrire quand même ?")) return;
+      const sujet = encodeURIComponent("Prise de contact — Skaelia");
+      window.location.href = `mailto:${cc.email}?subject=${sujet}&body=${encodeURIComponent($("#etMsg").value)}`;
+    } else if (cc.url_linkedin) {
+      if (extensionPresente) {
+        $("#etOuvrir").disabled = true; $("#etOuvrir").textContent = "Envoi…";
+        const r = await envoyerViaExtension(cc.url_linkedin, $("#etMsg").value);
+        $("#etOuvrir").disabled = false; $("#etOuvrir").textContent = "Envoyer sur LinkedIn →";
+        toast(r.ok ? "Message envoyé ✓" : "Échec : " + (r.error || "inconnu"));
+      } else {
+        await copier($("#etMsg").value);
+        ouvrirMessagerieLinkedin(cc);
+        toast("Message copié — colle-le (Ctrl+V) et envoie");
+      }
+    }
+  });
+
+  $("#etPrec").disabled = etapeIdx === 0;
+  $("#etSuiv").textContent = etapeIdx === fileProspection.length - 1 ? "Terminer" : "Suivant →";
+  $("#voileEtape").hidden = false;
+}
+
+$("#etPrec").addEventListener("click", () => { etapeIdx--; afficherEtape(); });
+$("#etSuiv").addEventListener("click", () => { etapeIdx++; afficherEtape(); });
+
+/* ---------------- Navigation Prospection / Mes contacts ---------------- */
+
+function montrerVue(nom) {
+  $("#vueProspection").hidden = nom !== "prospection";
+  $("#vueContacts").hidden = nom !== "contacts";
+  $$(".nav-onglet").forEach((b) => b.classList.toggle("actif", b.dataset.vue === nom));
+  if (nom === "contacts") dessinerMesContacts();
+}
+$$(".nav-onglet").forEach((b) =>
+  b.addEventListener("click", () => montrerVue(b.dataset.vue))
+);
+
 /* ---------------- démarrage ---------------- */
 
-api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
-chargerReglages().then((r) => {
-  const config = r.smtp_configure;
-  // pré-remplir l'hôte/utilisateur si déjà connus ? (non exposés — champs laissés vides)
-}).catch(() => {});
+// Filet anti-remplissage-auto : Chrome insère parfois l'email dans ces champs.
+function nettoyerChampsAuto() {
+  ["#fPoste", "#fLieu"].forEach((sel) => {
+    const el = $(sel);
+    if (el && el.value.includes("@")) el.value = "";
+  });
+}
+[200, 600, 1500].forEach((d) => setTimeout(nettoyerChampsAuto, d));
 
-// Reprendre une recherche en cours ou des résultats existants après rechargement
+api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
+chargerMesContacts();
+chargerHistorique();
+detecterExtension();
+setTimeout(() => {
+  const el = $("#etatExtension");
+  if (el) el.textContent = extensionPresente ? "installée ✓ (envoi LinkedIn direct actif)" : "non détectée (envoi LinkedIn manuel)";
+}, 1000);
+
 api("/api/statut").then((s) => {
   if (s.etat === "en_cours") {
     $("#suiviTitre").textContent = "Recherche : " + s.titre;

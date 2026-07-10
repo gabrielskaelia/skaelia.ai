@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body>
 
@@ -20,25 +20,158 @@
         <span class="logo-ai">AI</span>
         <span class="logo-sous">prospection</span>
       </div>
+      <nav class="nav-principale">
+        <button class="nav-onglet actif" data-vue="prospection">Prospection</button>
+        <button class="nav-onglet" data-vue="contacts">Mes contacts <span class="pastille" id="compteurContacts" hidden>0</span></button>
+      </nav>
       <div class="entete-droite">
         <span class="utilisateur-email" id="utilisateurEmail"></span>
         <button class="btn btn-discret" id="btnReglages">Réglages</button>
-        <button class="btn btn-discret" id="btnChangerMdp">Mot de passe</button>
         <button class="btn btn-secondaire" id="btnDeconnexion">Déconnexion</button>
       </div>
     </div>
   </header>
 
   <main>
+   <!-- ============ VUE PROSPECTION ============ -->
+   <div id="vueProspection">
     <!-- ===== Recherche ===== -->
     <div class="zone-recherche">
       <h1>Qui recrute en ce moment&nbsp;?</h1>
-      <p class="sous-titre">Indiquez un poste : l'outil recense les offres HelloWork &amp; Indeed, identifie les décideurs et leurs coordonnées.</p>
-      <div class="barre-recherche">
-        <input type="text" id="fPoste" placeholder="Poste recherché — ex. : développeur, commercial, comptable…">
-        <input type="text" id="fLieu" class="champ-lieu" placeholder="Lieu (facultatif)">
-        <button class="btn btn-primaire" id="btnLancer">Rechercher</button>
+      <p class="sous-titre">Configurez la prospection auto ci-dessous puis lancez-la.</p>
+
+      <div class="panneau-options" id="panneauOptions">
+        <div class="opt-titre">⚙ Prospection auto</div>
+        <div class="opt-grille">
+          <label class="champ">
+            <span class="champ-libelle">Poste / fonction recherché(e) <em>(facultatif)</em></span>
+            <input type="text" id="fPoste" name="poste_prospection" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ex. : développeur, commercial, comptable…">
+          </label>
+          <label class="champ">
+            <span class="champ-libelle">Ville / département <em>(facultatif)</em></span>
+            <input type="text" id="fLieu" name="lieu_prospection" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ex. : Nantes, 44…">
+          </label>
+          <label class="champ">
+            <span class="champ-libelle">Secteur <em>(facultatif)</em></span>
+            <select id="fSecteur">
+              <option value="">Tous les secteurs</option>
+              <option value="informatique">Informatique / IT</option>
+              <option value="développeur">Développement / Tech</option>
+              <option value="data">Data / IA</option>
+              <option value="cybersécurité">Cybersécurité</option>
+              <option value="réseau systèmes">Réseaux &amp; Systèmes</option>
+              <option value="commercial">Business / Commercial</option>
+              <option value="vente">Vente / Retail</option>
+              <option value="marketing">Marketing / Communication</option>
+              <option value="finance">Finance / Comptabilité</option>
+              <option value="contrôle de gestion">Contrôle de gestion</option>
+              <option value="ressources humaines">Ressources Humaines</option>
+              <option value="juridique">Juridique</option>
+              <option value="consultant">Conseil / Consulting</option>
+              <option value="ingénieur">Ingénierie</option>
+              <option value="production industrie">Industrie / Production</option>
+              <option value="logistique supply chain">Logistique / Supply Chain</option>
+              <option value="achats">Achats</option>
+              <option value="banque assurance">Banque / Assurance</option>
+              <option value="immobilier">Immobilier / BTP</option>
+              <option value="santé">Santé / Médical</option>
+              <option value="direction">Direction / Management</option>
+            </select>
+          </label>
+        </div>
+        <div class="opt-ligne">
+          <span class="champ-libelle">Type de contrat <em>(rien de coché = tous)</em></span>
+          <div class="pills" id="fContrats">
+            <label class="pill"><input type="checkbox" value="CDI"><span>CDI</span></label>
+            <label class="pill"><input type="checkbox" value="CDD"><span>CDD</span></label>
+            <label class="pill"><input type="checkbox" value="Intérim"><span>Intérim</span></label>
+            <label class="pill"><input type="checkbox" value="Alternance"><span>Alternance</span></label>
+            <label class="pill"><input type="checkbox" value="Stage"><span>Stage</span></label>
+            <label class="pill"><input type="checkbox" value="Indépendant"><span>Indépendant</span></label>
+          </div>
+        </div>
+        <div class="opt-grille">
+          <label class="champ">
+            <span class="champ-libelle">Région</span>
+            <select id="fRegion">
+              <option value="">Toute la France</option>
+              <option>Auvergne-Rhône-Alpes</option>
+              <option>Bourgogne-Franche-Comté</option>
+              <option>Bretagne</option>
+              <option>Centre-Val de Loire</option>
+              <option>Corse</option>
+              <option>Grand Est</option>
+              <option>Hauts-de-France</option>
+              <option>Île-de-France</option>
+              <option>Normandie</option>
+              <option>Nouvelle-Aquitaine</option>
+              <option>Occitanie</option>
+              <option>Pays de la Loire</option>
+              <option>Provence-Alpes-Côte d'Azur</option>
+            </select>
+          </label>
+          <label class="champ">
+            <span class="champ-libelle">Ancienneté des offres</span>
+            <select id="fAnciennete">
+              <option value="1">24 heures</option>
+              <option value="3">3 jours</option>
+              <option value="7">7 jours</option>
+              <option value="14" selected>14 jours</option>
+              <option value="30">30 jours</option>
+              <option value="0">Toutes</option>
+            </select>
+          </label>
+          <label class="champ">
+            <span class="champ-libelle">Nombre de contacts</span>
+            <input type="number" id="fNbContacts" min="5" max="400" step="5" value="40" list="contactsSuggestions" autocomplete="off">
+            <datalist id="contactsSuggestions">
+              <option value="20"></option>
+              <option value="40"></option>
+              <option value="80"></option>
+              <option value="150"></option>
+            </datalist>
+            <div class="suggestions-offres" id="suggestionsContacts">
+              <button type="button" class="chip-offre" data-val="20">20</button>
+              <button type="button" class="chip-offre" data-val="40">40</button>
+              <button type="button" class="chip-offre" data-val="80">80</button>
+              <button type="button" class="chip-offre" data-val="150">150</button>
+            </div>
+          </label>
+          <div class="champ">
+            <span class="champ-libelle">Plateformes</span>
+            <div class="pills" id="fSources">
+              <label class="pill"><input type="checkbox" value="hellowork" checked><span>HelloWork</span></label>
+              <label class="pill"><input type="checkbox" value="indeed" checked><span>Indeed</span></label>
+              <label class="pill"><input type="checkbox" value="linkedin" checked><span>LinkedIn</span></label>
+              <label class="pill pill-desactive" title="Bientôt disponible"><input type="checkbox" value="wttj" disabled><span>Welcome to the Jungle (bientôt)</span></label>
+            </div>
+          </div>
+          <div class="champ">
+            <span class="champ-libelle">Type de recherche <em>(Nicoka)</em></span>
+            <div class="pills" id="fTypes">
+              <label class="pill"><input type="checkbox" value="prospect" checked><span>Prospects</span></label>
+              <label class="pill"><input type="checkbox" value="client" checked><span>Clients</span></label>
+            </div>
+          </div>
+        </div>
+        <label class="filtre-prospection">
+          <input type="checkbox" id="fTeletravail">
+          <span class="inter-visuel-mini"></span>
+          <span>Télétravail uniquement</span>
+        </label>
+        <div class="opt-lancer">
+          <button class="btn btn-primaire btn-grand" id="btnLancer">Lancer la prospection →</button>
+        </div>
       </div>
+    </div>
+
+    <!-- ===== Recherches enregistrées ===== -->
+    <div id="blocHistorique" hidden>
+      <div class="histo-entete">
+        <h2 class="titre-historique">Recherches enregistrées</h2>
+        <button class="btn btn-secondaire btn-petit" id="btnViderHistorique">Tout supprimer</button>
+      </div>
+      <div class="grille-historique" id="grilleHistorique"></div>
     </div>
 
     <!-- ===== Suivi ===== -->
@@ -55,31 +188,107 @@
       <div class="stats" id="statsResultats"></div>
       <div class="res-actions">
         <a class="btn btn-primaire" href="/api/telecharger">Télécharger l'Excel</a>
+        <button class="btn btn-secondaire" id="btnRetourRecherche">← Retour</button>
       </div>
       <div class="onglets">
         <button class="onglet actif" data-table="contacts">Contacts</button>
         <button class="onglet" data-table="offres">Offres</button>
       </div>
+      <div class="barre-table" id="barreContacts">
+        <button class="btn btn-secondaire btn-petit" id="btnToutAjouter">+ Tout ajouter à mes contacts</button>
+        <button class="btn btn-secondaire btn-petit" id="btnToutSupprimer">Tout supprimer</button>
+        <span class="barre-info" id="infoAjout"></span>
+      </div>
       <div class="carte-table">
         <div class="table-defilante"><table id="tableResultats"></table></div>
       </div>
     </section>
+   </div><!-- /vueProspection -->
+
+   <!-- ============ VUE MES CONTACTS ============ -->
+   <section id="vueContacts" hidden>
+     <div class="zone-recherche">
+       <h1>Mes contacts</h1>
+       <p class="sous-titre">Les contacts que vous avez ajoutés depuis vos recherches. Cliquez sur « Prendre contact » pour les joindre.</p>
+     </div>
+     <div class="res-actions" id="actionsContacts" hidden>
+       <button class="btn btn-primaire" id="btnToutProspecter">Tout prospecter</button>
+       <button class="btn btn-secondaire" id="btnVerifierNicoka">Vérifier dans Nicoka</button>
+       <button class="btn btn-secondaire" id="btnExportContacts">Exporter en Excel</button>
+       <span class="barre-info" id="infoNicoka"></span>
+     </div>
+     <div class="carte-table" id="carteMesContacts">
+       <div class="table-defilante"><table id="tableMesContacts"></table></div>
+     </div>
+     <div id="contactsVide" class="message-info" hidden>
+       Aucun contact enregistré pour l'instant. Lancez une recherche, puis ajoutez des contacts depuis l'onglet Contacts des résultats.
+     </div>
+   </section>
+
   </main>
+
+  <!-- ===== Modale « Prendre contact manuellement » ===== -->
+  <div class="voile" id="voilePrendreContact" hidden>
+    <div class="modale modale-contact">
+      <h2 id="pcTitre">Prendre contact manuellement</h2>
+      <p class="sous-titre" id="pcSousTitre"></p>
+      <div class="options-contact" id="optionsContact"></div>
+      <div class="modale-actions">
+        <button class="btn btn-secondaire" id="btnFermerPrendreContact">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modale « Tout prospecter » ===== -->
+  <div class="voile" id="voileProspecter" hidden>
+    <div class="modale">
+      <h2 id="prTitre">Tout prospecter</h2>
+      <p class="sous-titre" id="prSousTitre">Choisissez le canal pour chaque contact, puis lancez la prospection.</p>
+      <div id="prListe" class="prospect-liste"></div>
+      <div class="modale-actions">
+        <button class="btn btn-primaire" id="btnLancerProspection">Démarrer →</button>
+        <button class="btn btn-secondaire" id="btnFermerProspecter">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modale étape de prospection ===== -->
+  <div class="voile" id="voileEtape" hidden>
+    <div class="modale modale-contact">
+      <div class="etape-entete">
+        <span class="barre-info" id="etProgression"></span>
+      </div>
+      <h2 id="etNom"></h2>
+      <p class="sous-titre" id="etPoste"></p>
+      <div id="etAction" class="options-contact"></div>
+      <div class="modale-actions">
+        <button class="btn btn-secondaire" id="etPrec">← Précédent</button>
+        <button class="btn btn-primaire" id="etSuiv">Suivant →</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== Modale réglages ===== -->
   <div class="voile" id="voileReglages" hidden>
     <div class="modale">
       <h2>Réglages</h2>
+
+      <h2>Mot de passe</h2>
+      <div class="message-info erreur" id="msgMdp" hidden></div>
       <label class="champ">
-        <span class="champ-libelle">Clé API UseBouncer (vérification des emails) <em id="etatCle"></em></span>
-        <input type="password" id="rCle" placeholder="Laisser vide pour ne pas changer">
+        <span class="champ-libelle">Mot de passe actuel</span>
+        <input type="password" id="mAncien" autocomplete="current-password" placeholder="Laisser vide si vous ne changez pas">
       </label>
       <label class="champ">
-        <span class="champ-libelle">Cabinets / agences exclus (un par ligne)</span>
-        <textarea id="rExclusions" rows="6"></textarea>
+        <span class="champ-libelle">Nouveau mot de passe (8 caractères min.)</span>
+        <input type="password" id="mNouveau" autocomplete="new-password" placeholder="Laisser vide si vous ne changez pas">
       </label>
+      <div class="modale-actions">
+        <button class="btn btn-secondaire" id="btnValiderMdp">Changer le mot de passe</button>
+      </div>
+
       <hr class="separateur">
-      <h2>Envoi d'emails (validation des comptes) <span class="badge badge-neutre" id="etatSmtp"></span></h2>
+      <h2>Envoi d'emails <span class="badge badge-neutre" id="etatSmtp"></span></h2>
       <label class="champ">
         <span class="champ-libelle">Serveur SMTP</span>
         <input type="text" id="rSmtpHote" placeholder="ex. : smtp.gmail.com">
@@ -96,6 +305,8 @@
         <span class="champ-libelle">Mot de passe (Gmail : « mot de passe d'application »)</span>
         <input type="password" id="rSmtpMdp" placeholder="Laisser vide pour ne pas changer">
       </label>
+
+      <hr class="separateur">
       <div class="modale-actions">
         <button class="btn btn-primaire" id="btnSauverReglages">Enregistrer</button>
         <button class="btn btn-secondaire" id="btnFermerReglages">Fermer</button>
@@ -103,26 +314,6 @@
     </div>
   </div>
 
-  <!-- ===== Modale mot de passe ===== -->
-  <div class="voile" id="voileMdp" hidden>
-    <div class="modale">
-      <h2>Changer le mot de passe</h2>
-      <div class="message-info erreur" id="msgMdp" hidden></div>
-      <label class="champ">
-        <span class="champ-libelle">Mot de passe actuel</span>
-        <input type="password" id="mAncien" autocomplete="current-password">
-      </label>
-      <label class="champ">
-        <span class="champ-libelle">Nouveau mot de passe (8 caractères min.)</span>
-        <input type="password" id="mNouveau" autocomplete="new-password">
-      </label>
-      <div class="modale-actions">
-        <button class="btn btn-primaire" id="btnValiderMdp">Changer</button>
-        <button class="btn btn-secondaire" id="btnFermerMdp">Fermer</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v={{ v }}"></script>
 </body>
 </html>

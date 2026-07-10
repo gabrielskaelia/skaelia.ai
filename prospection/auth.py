@@ -52,8 +52,10 @@ def _normaliser_email(email):
 
 # ------------------------------------------------------------------ demandes
 
-def creer_demande(email, nom=""):
-    """Enregistre une demande d'accès. Retourne (ok, message)."""
+def creer_demande(email, nom="", auth="mot_de_passe"):
+    """Enregistre une demande d'accès. Retourne (ok, message).
+    `auth` = "mot_de_passe" (choix d'un mot de passe après validation) ou
+    "google" (connexion Google, aucun mot de passe à définir)."""
     email = _normaliser_email(email)
     if "@" not in email or "." not in email.split("@")[-1]:
         return False, "Adresse email invalide."
@@ -63,13 +65,22 @@ def creer_demande(email, nom=""):
         if u and u.get("statut") == "actif":
             return False, "Ce compte existe déjà — connectez-vous."
         utilisateurs[email] = {
-            "nom": (nom or "").strip(),
+            "nom": (nom or "").strip() or (u.get("nom") if u else ""),
             "statut": "en_attente",
+            "auth": auth,
             "mdp": u.get("mdp") if u else None,
             "demande_le": datetime.now().isoformat(timespec="seconds"),
         }
         _sauver(utilisateurs)
     return True, "Demande enregistrée."
+
+
+def statut_compte(email):
+    """Retourne (statut, auth) du compte, ou (None, None) s'il n'existe pas."""
+    u = _charger().get(_normaliser_email(email))
+    if not u:
+        return None, None
+    return u.get("statut"), u.get("auth", "mot_de_passe")
 
 
 def jeton_validation(email):
@@ -89,11 +100,25 @@ def valider_demande(jeton, max_age=7 * 24 * 3600):
         utilisateurs = _charger()
         if email not in utilisateurs:
             return None, "Aucune demande trouvée pour cette adresse."
-        if utilisateurs[email]["statut"] != "actif":
-            utilisateurs[email]["statut"] = "valide"
-            utilisateurs[email]["valide_le"] = datetime.now().isoformat(timespec="seconds")
+        u = utilisateurs[email]
+        if u["statut"] != "actif":
+            # Comptes Google : rien à définir, on active directement.
+            # Comptes mot de passe : l'utilisateur devra choisir son mot de passe.
+            u["statut"] = "actif" if u.get("auth") == "google" else "valide"
+            u["valide_le"] = datetime.now().isoformat(timespec="seconds")
             _sauver(utilisateurs)
     return email, ""
+
+
+def valider_connexion_google(email):
+    """Autorise une connexion Google. Retourne (ok, statut) :
+    - (True, 'actif') si le compte est validé et peut se connecter,
+    - (False, 'en_attente'|'valide') si en attente de validation admin,
+    - (False, None) si aucun compte (le serveur créera alors une demande)."""
+    statut, auth = statut_compte(email)
+    if statut == "actif":
+        return True, "actif"
+    return False, statut
 
 
 def jeton_mot_de_passe(email):

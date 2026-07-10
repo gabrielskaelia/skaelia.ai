@@ -11,12 +11,17 @@ import unicodedata
 
 from ddgs import DDGS
 
-# Intitulés recherchés par défaut, par ordre de priorité
+# Intitulés recherchés (une seule requête combinée pour aller vite).
 ROLES_DEFAUT = [
     '"talent acquisition" OR "chargé de recrutement" OR "responsable recrutement"',
     'DRH OR RRH OR "responsable RH" OR "ressources humaines"',
     '"directeur général" OR CEO OR fondateur OR gérant',
 ]
+# Filtre unique : décideurs RH + direction, regroupés dans un seul « OU ».
+ROLE_FILTRE = ('"talent acquisition" OR "chargé de recrutement" OR '
+               '"responsable recrutement" OR DRH OR RRH OR "responsable RH" OR '
+               '"ressources humaines" OR "directeur général" OR CEO OR '
+               'fondateur OR gérant OR président')
 
 _RE_LINKEDIN_IN = re.compile(r"linkedin\.com/in/", re.I)
 
@@ -55,57 +60,54 @@ def _parser_titre(titre):
     return nom, poste, entreprise
 
 
-def chercher_contacts(entreprise, roles=None, max_par_role=3, delai=3.0):
-    """Cherche les profils LinkedIn de décideurs pour une entreprise.
+def chercher_contacts(entreprise, roles=None, max_par_role=3, delai=0,
+                      max_contacts=3):
+    """Cherche les profils LinkedIn de décideurs pour une entreprise, en UNE
+    seule requête (rapide). Retourne au plus `max_contacts` profils
+    [{entreprise, nom, poste, entreprise_profil, url_linkedin, extrait}].
 
-    Retourne [{entreprise, nom, poste, entreprise_profil, url_linkedin, requete}].
+    `roles` : liste de filtres OR (fusionnés) ; par défaut RH + direction.
+    `delai`, `max_par_role` : conservés pour compat, sans effet notable ici.
     """
-    roles = roles or ROLES_DEFAUT
+    filtre = " OR ".join(roles) if roles else ROLE_FILTRE
+    requete = f'site:linkedin.com/in "{entreprise}" ({filtre})'
+    try:
+        with DDGS() as ddgs:
+            resultats = ddgs.text(requete, region="fr-fr", max_results=8)
+    except Exception as e:
+        print(f"    [LinkedIn] recherche impossible pour {entreprise} : {e}")
+        return []
+
     contacts = []
     vus = set()
     mots_cles = _mots_cles_entreprise(entreprise)
-
-    for role in roles:
-        requete = f'site:linkedin.com/in "{entreprise}" ({role})'
-        try:
-            with DDGS() as ddgs:
-                resultats = ddgs.text(requete, region="fr-fr", max_results=8)
-        except Exception as e:
-            print(f"    [LinkedIn] recherche impossible pour {entreprise} : {e}")
-            time.sleep(delai)
+    for r in resultats or []:
+        url = r.get("href", "")
+        if not _RE_LINKEDIN_IN.search(url):
             continue
-
-        nb_role = 0
-        for r in resultats or []:
-            url = r.get("href", "")
-            if not _RE_LINKEDIN_IN.search(url):
-                continue
-            url_propre = _normaliser_url(url)
-            if url_propre in vus:
-                continue
-            nom, poste, entreprise_profil = _parser_titre(r.get("title", ""))
-            if not nom or _normaliser_texte(nom) in vus:
-                continue
-            # Pertinence : le nom de l'entreprise doit apparaître dans le
-            # titre ou l'extrait du profil, sinon c'est un faux positif.
-            texte_profil = _normaliser_texte(
-                (r.get("title") or "") + " " + (r.get("body") or "")
-            )
-            if not any(mot in texte_profil for mot in mots_cles):
-                continue
-            vus.add(url_propre)
-            vus.add(_normaliser_texte(nom))
-            contacts.append({
-                "entreprise": entreprise,
-                "nom": nom,
-                "poste": poste,
-                "entreprise_profil": entreprise_profil,
-                "url_linkedin": url_propre,
-                "extrait": (r.get("body") or "")[:300],
-            })
-            nb_role += 1
-            if nb_role >= max_par_role:
-                break
-
-        time.sleep(delai)
+        url_propre = _normaliser_url(url)
+        if url_propre in vus:
+            continue
+        nom, poste, entreprise_profil = _parser_titre(r.get("title", ""))
+        if not nom or _normaliser_texte(nom) in vus:
+            continue
+        # Pertinence : le nom de l'entreprise doit apparaître dans le titre
+        # ou l'extrait du profil, sinon c'est un faux positif.
+        texte_profil = _normaliser_texte(
+            (r.get("title") or "") + " " + (r.get("body") or "")
+        )
+        if not any(mot in texte_profil for mot in mots_cles):
+            continue
+        vus.add(url_propre)
+        vus.add(_normaliser_texte(nom))
+        contacts.append({
+            "entreprise": entreprise,
+            "nom": nom,
+            "poste": poste,
+            "entreprise_profil": entreprise_profil,
+            "url_linkedin": url_propre,
+            "extrait": (r.get("body") or "")[:300],
+        })
+        if len(contacts) >= max_contacts:
+            break
     return contacts

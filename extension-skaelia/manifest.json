@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Skaelia Prospection — Envoi LinkedIn",
+  "version": "1.0.0",
+  "description": "Envoie directement les messages LinkedIn depuis l'outil de prospection Skaelia (croisia.me).",
+  "permissions": ["tabs", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://croisia.me/*",
+    "https://www.croisia.me/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://croisia.me/*", "https://www.croisia.me/*"],
+      "js": ["content_app.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content_linkedin.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_title": "Skaelia Prospection" }
+}

@@ -18,14 +18,26 @@ def _normaliser(nom):
     return nom
 
 
-def consolider_entreprises(offres, exclusions=None):
+def est_client(nom, clients_norm):
+    """True si l'entreprise `nom` fait partie de nos clients (missions Nicoka)."""
+    cle = _normaliser(nom)
+    if not cle:
+        return False
+    return any(cle == c or cle.startswith(c + " ") or c.startswith(cle + " ")
+               for c in clients_norm if c)
+
+
+def consolider_entreprises(offres, exclusions=None, clients=None):
     """Regroupe les offres par entreprise.
 
-    Retourne une liste [{entreprise, nb_offres, postes, lieux, sources, urls}]
-    triée par nombre d'offres décroissant. `exclusions` est une liste de noms
-    (cabinets de recrutement, agences d'intérim...) à ignorer.
+    Retourne une liste [{entreprise, nb_offres, postes, lieux, sources, urls,
+    type}] triée par nombre d'offres décroissant. `exclusions` = noms à ignorer
+    (cabinets de recrutement, agences d'intérim...). `clients` = noms de nos
+    entreprises clientes (Nicoka) : elles sont marquées type="client", les
+    autres type="prospect".
     """
     exclusions_norm = {_normaliser(e) for e in (exclusions or [])}
+    clients_norm = {_normaliser(c) for c in (clients or [])}
     groupes = {}
     for offre in offres:
         nom = offre.get("entreprise", "").strip()
@@ -44,6 +56,7 @@ def consolider_entreprises(offres, exclusions=None):
             "lieux": [],
             "sources": set(),
             "urls": [],
+            "type": "client" if est_client(nom, clients_norm) else "prospect",
         })
         g["nb_offres"] += 1
         if offre["titre"] not in g["postes"]:

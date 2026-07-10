@@ -8,12 +8,22 @@
   "max_entreprises_a_prospecter": 15,
   "contacts_max_par_role": 2,
   "usebouncer_api_key": "",
+  "fullenrich_api_key": "",
   "smtp": {
     "hote": "smtp.gmail.com",
     "port": 587,
     "utilisateur": "adresse@skaelia.com",
     "mot_de_passe": "mot de passe d'application Google",
     "expediteur": "adresse@skaelia.com"
+  },
+  "nicoka": {
+    "base_url": "https://skaelia.nicoka.com/api",
+    "token": "jeton JWT lecture seule (scope api:read)",
+    "jours_prospection": 50
+  },
+  "google": {
+    "client_id": "identifiant client OAuth Google Cloud",
+    "client_secret": "secret client OAuth Google Cloud"
   },
   "roles_cibles": [
     "\"talent acquisition\" OR \"chargé de recrutement\" OR \"responsable recrutement\"",

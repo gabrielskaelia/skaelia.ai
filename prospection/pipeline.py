@@ -24,10 +24,12 @@ import json
 import re
 import threading
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
-from . import companies, emails, export_excel, jobs_hellowork, jobs_indeed, linkedin_contacts
+from . import (companies, emails, export_excel, jobs_hellowork, jobs_indeed,
+               jobs_linkedin, linkedin_contacts, nicoka)
 
 RACINE = Path(__file__).parent.parent
 DOSSIER_DONNEES = RACINE / "data"
@@ -47,9 +49,12 @@ DEFAUTS = {
     "teletravail_uniquement": False,
     "chercher_contacts": True,
     "max_entreprises": 15,
+    "nb_contacts_cible": 0,
     "contacts_max_par_role": 2,
     "roles_cibles": None,
     "exclusions": [],
+    "clients": [],
+    "types_entreprise": ["prospect", "client"],
     "verifier_emails": True,
     "usebouncer_api_key": "",
 }
@@ -148,22 +153,41 @@ def executer(params, log=print):
     lieu = (p.get("lieu") or "").strip()
     sources = [s.lower() for s in p["sources"]] or ["hellowork", "indeed"]
 
-    # --- 1. Collecte -------------------------------------------------------
+    # --- 1. Collecte (sources interrogées en parallèle) --------------------
+    pages = int(p["pages"])
+
+    def _hellowork():
+        return jobs_hellowork.rechercher_offres(poste, lieu, pages=pages)
+
+    def _indeed():
+        return jobs_indeed.rechercher_offres(
+            poste, lieu, pages=pages,
+            anciennete_jours=int(p["anciennete_jours"]) or None)
+
+    def _linkedin():
+        return jobs_linkedin.rechercher_offres(poste, lieu, pages=pages)
+
+    def _wttj():
+        from . import jobs_wttj
+        return jobs_wttj.rechercher_offres(poste, lieu, pages=pages)
+
+    collecteurs = {"hellowork": _hellowork, "indeed": _indeed,
+                   "linkedin": _linkedin, "wttj": _wttj}
+    noms = {"hellowork": "HelloWork", "indeed": "Indeed",
+            "linkedin": "LinkedIn", "wttj": "Welcome to the Jungle"}
+    a_lancer = [s for s in ("hellowork", "indeed", "linkedin", "wttj") if s in sources]
+
+    log(f"Collecte de {len(a_lancer)} source(s) en parallèle : « {poste} » ({lieu or 'toute la France'})…")
     offres = []
-    if "hellowork" in sources:
-        log(f"Collecte HelloWork : « {poste} » ({lieu or 'toute la France'})…")
-        hw = jobs_hellowork.rechercher_offres(poste, lieu, pages=int(p["pages"]))
-        log(f"→ {len(hw)} offres HelloWork")
-        offres += hw
-    if "indeed" in sources:
-        log("Collecte Indeed…")
-        ind = jobs_indeed.rechercher_offres(
-            poste, lieu,
-            pages=int(p["pages"]),
-            anciennete_jours=int(p["anciennete_jours"]) or None,
-        )
-        log(f"→ {len(ind)} offres Indeed")
-        offres += ind
+    with ThreadPoolExecutor(max_workers=max(1, len(a_lancer))) as ex:
+        futurs = {ex.submit(collecteurs[s]): s for s in a_lancer}
+        for f, s in futurs.items():
+            try:
+                trouvees = f.result()
+                log(f"→ {len(trouvees)} offres {noms[s]}")
+                offres += trouvees
+            except Exception as e:
+                log(f"→ {noms[s]} indisponible : {e}")
 
     # --- Filtres -----------------------------------------------------------
     avant = len(offres)
@@ -179,49 +203,89 @@ def executer(params, log=print):
         log("Aucune offre après collecte/filtres.")
         return {"offres": [], "entreprises": [], "contacts": [], "fichier": "", "nb_nouvelles": 0}
 
-    nb_nouvelles = _marquer_nouveautes(offres, _signature_recherche(poste, lieu))
+    cle_user = p.get("cle_user", "")
+    nb_nouvelles = _marquer_nouveautes(
+        offres, (cle_user + "_" if cle_user else "") + _signature_recherche(poste, lieu))
     if nb_nouvelles:
         log(f"★ {nb_nouvelles} offre(s) jamais vue(s) depuis la dernière recherche")
 
-    # --- 2. Entreprises ----------------------------------------------------
-    entreprises = companies.consolider_entreprises(offres, p["exclusions"])
-    log(f"{len(entreprises)} entreprises uniques (cabinets/intérim exclus)")
+    # --- 2. Entreprises (classées client / prospect) -----------------------
+    entreprises = companies.consolider_entreprises(offres, p["exclusions"], p["clients"])
+    # Filtre sur le type demandé (prospect / client)
+    types_voulus = set(p["types_entreprise"]) or {"prospect", "client"}
+    if types_voulus != {"prospect", "client"}:
+        avant = len(entreprises)
+        entreprises = [e for e in entreprises if e.get("type") in types_voulus]
+        log(f"Filtre type ({', '.join(sorted(types_voulus))}) : {len(entreprises)}/{avant} entreprises")
+    nb_clients = sum(1 for e in entreprises if e.get("type") == "client")
+    log(f"{len(entreprises)} entreprises uniques dont {nb_clients} client(s) — cabinets et intérim exclus")
+    # Répercuter le type sur les offres (pour l'affichage)
+    type_par_ent = {companies._normaliser(e["entreprise"]): e.get("type") for e in entreprises}
+    for o in offres:
+        o["type"] = type_par_ent.get(companies._normaliser(o.get("entreprise", "")), "")
 
-    # --- 3. Décideurs + emails ---------------------------------------------
+    # --- 3. Décideurs (sans email : le vrai email + téléphone sont trouvés à
+    #        l'ajout du contact, via FullEnrich) — entreprises en parallèle ---
     contacts = []
     if p["chercher_contacts"]:
+        cible_nb = int(p.get("nb_contacts_cible") or 0)
         cibles = entreprises[: int(p["max_entreprises"])]
-        log(f"Recherche des décideurs pour {len(cibles)} entreprises…")
-        api_key = p["usebouncer_api_key"] if p["verifier_emails"] else ""
-        if p["verifier_emails"] and not api_key:
-            log("(pas de clé UseBouncer : les emails seront générés mais non vérifiés)")
-        for i, ent in enumerate(cibles, 1):
-            nom_ent = ent["entreprise"]
-            log(f"[{i}/{len(cibles)}] {nom_ent}")
-            trouves = linkedin_contacts.chercher_contacts(
-                nom_ent,
-                roles=p["roles_cibles"],
-                max_par_role=int(p["contacts_max_par_role"]),
-            )
-            if trouves:
-                domaine = emails.trouver_domaine(nom_ent)
-                ent["domaine"] = domaine
-                for c in trouves:
-                    c["email"], c["statut_email"] = emails.meilleur_email(
-                        c["nom"], domaine, api_key or None
-                    )
-                log(f"    {len(trouves)} contact(s)" + (f" — domaine {domaine}" if domaine else ""))
+        if cible_nb:
+            log(f"Recherche des décideurs jusqu'à {cible_nb} contact(s) (en parallèle)…")
+        else:
+            log(f"Recherche des décideurs pour {len(cibles)} entreprises (en parallèle)…")
+        fait = {"n": 0}
+        verrou = threading.Lock()
+
+        def _pour_entreprise(ent):
+            # Entreprise cliente : le contact est déjà dans Nicoka, on le
+            # récupère (pas de recherche LinkedIn). Prospect : recherche LinkedIn.
+            if ent.get("type") == "client":
+                trouves = nicoka.contacts_pour_entreprise(
+                    ent["entreprise"], max_contacts=int(p["contacts_max_par_role"]) + 1)
+                origine = "Nicoka"
             else:
-                log("    aucun contact trouvé")
-            contacts += trouves
+                trouves = linkedin_contacts.chercher_contacts(
+                    ent["entreprise"],
+                    roles=p["roles_cibles"],
+                    max_contacts=int(p["contacts_max_par_role"]) + 1,
+                )
+                origine = "LinkedIn"
+            for c in trouves:
+                c.setdefault("email", "")
+                c.setdefault("statut_email", "")
+                c["type"] = ent.get("type", "")
+            with verrou:
+                fait["n"] += 1
+                log(f"[{fait['n']}] {ent['entreprise']} ({origine}) : "
+                    + (f"{len(trouves)} contact(s)" if trouves else "aucun contact"))
+            return trouves
+
+        # Toutes les entreprises sont lancées d'un coup ; on encaisse les
+        # résultats au fil de l'eau et on s'arrête net dès la cible atteinte.
+        ex = ThreadPoolExecutor(max_workers=10)
+        futurs = [ex.submit(_pour_entreprise, ent) for ent in cibles]
+        try:
+            for f in as_completed(futurs):
+                contacts += f.result()
+                if cible_nb and len(contacts) >= cible_nb:
+                    break
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
+        if cible_nb and len(contacts) > cible_nb:
+            contacts = contacts[:cible_nb]
+        if cible_nb:
+            log(f"→ {len(contacts)} contact(s) retenus"
+                + (" (cible atteinte)" if len(contacts) >= cible_nb else " (cible non atteinte, tout ratissé)"))
     else:
         log("Recherche de contacts désactivée.")
 
-    # --- 4. Export ----------------------------------------------------------
-    DOSSIER_RESULTATS.mkdir(exist_ok=True)
+    # --- 4. Export (dans le dossier du compte) ------------------------------
+    dossier = Path(p["dossier_resultats"]) if p.get("dossier_resultats") else DOSSIER_RESULTATS
+    dossier.mkdir(parents=True, exist_ok=True)
     horodatage = datetime.now().strftime("%Y-%m-%d_%Hh%M")
     nom_base = _signature_recherche(poste, lieu) or "recherche"
-    fichier = DOSSIER_RESULTATS / f"prospection_{nom_base}_{horodatage}.xlsx"
+    fichier = dossier / f"prospection_{nom_base}_{horodatage}.xlsx"
     export_excel.exporter(str(fichier), offres, entreprises, contacts)
     log(f"Fichier Excel : {fichier.name}")
 
