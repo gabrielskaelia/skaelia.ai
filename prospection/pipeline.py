@@ -175,7 +175,8 @@ def executer(params, log=print):
 
     def _wttj():
         from . import jobs_wttj
-        return jobs_wttj.rechercher_offres(poste, lieu, pages=pages)
+        return jobs_wttj.rechercher_offres(poste, lieu, pages=pages,
+                                           rayon_km=int(p["rayon_km"]))
 
     collecteurs = {"hellowork": _hellowork, "indeed": _indeed,
                    "linkedin": _linkedin, "wttj": _wttj}
