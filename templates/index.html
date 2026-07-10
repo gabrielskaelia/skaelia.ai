@@ -44,15 +44,7 @@
         <div class="opt-titre">⚙ Prospection auto</div>
         <div class="opt-grille">
           <label class="champ">
-            <span class="champ-libelle">Poste / fonction recherché(e) <em>(facultatif)</em></span>
-            <input type="text" id="fPoste" name="poste_prospection" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ex. : développeur, commercial, comptable…">
-          </label>
-          <label class="champ">
-            <span class="champ-libelle">Ville / département <em>(facultatif)</em></span>
-            <input type="text" id="fLieu" name="lieu_prospection" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ex. : Nantes, 44…">
-          </label>
-          <label class="champ">
-            <span class="champ-libelle">Secteur <em>(facultatif)</em></span>
+            <span class="champ-libelle">Secteur</span>
             <select id="fSecteur">
               <option value="">Tous les secteurs</option>
               <option value="informatique">Informatique / IT</option>
@@ -80,14 +72,17 @@
           </label>
         </div>
         <div class="opt-ligne">
-          <span class="champ-libelle">Type de contrat <em>(rien de coché = tous)</em></span>
+          <span class="champ-libelle">Type de contrat</span>
           <div class="pills" id="fContrats">
-            <label class="pill"><input type="checkbox" value="CDI"><span>CDI</span></label>
-            <label class="pill"><input type="checkbox" value="CDD"><span>CDD</span></label>
-            <label class="pill"><input type="checkbox" value="Intérim"><span>Intérim</span></label>
-            <label class="pill"><input type="checkbox" value="Alternance"><span>Alternance</span></label>
-            <label class="pill"><input type="checkbox" value="Stage"><span>Stage</span></label>
-            <label class="pill"><input type="checkbox" value="Indépendant"><span>Indépendant</span></label>
+            <label class="pill"><input type="checkbox" value="CDI" checked><span>CDI</span></label>
+            <span id="contratsSupp" hidden>
+              <label class="pill"><input type="checkbox" value="CDD"><span>CDD</span></label>
+              <label class="pill"><input type="checkbox" value="Intérim"><span>Intérim</span></label>
+              <label class="pill"><input type="checkbox" value="Alternance"><span>Alternance</span></label>
+              <label class="pill"><input type="checkbox" value="Stage"><span>Stage</span></label>
+              <label class="pill"><input type="checkbox" value="Indépendant"><span>Indépendant</span></label>
+            </span>
+            <button type="button" class="pill pill-plus" id="btnPlusContrats" title="Plus de types de contrat">+</button>
           </div>
         </div>
         <div class="opt-grille">
@@ -155,14 +150,9 @@
           </div>
         </div>
         <label class="filtre-prospection">
-          <input type="checkbox" id="fTeletravail">
-          <span class="inter-visuel-mini"></span>
-          <span>Télétravail uniquement</span>
-        </label>
-        <label class="filtre-prospection">
           <input type="checkbox" id="fRechercheAmelioree">
           <span class="inter-visuel-mini"></span>
-          <span>Recherche améliorée des décideurs (FullEnrich) — consomme des crédits</span>
+          <span>Recherche améliorée (FullEnrich)</span>
         </label>
         <div class="opt-lancer">
           <button class="btn btn-primaire btn-grand" id="btnLancer">Lancer la prospection →</button>
@@ -218,9 +208,7 @@
      </div>
      <div class="res-actions" id="actionsContacts" hidden>
        <button class="btn btn-primaire" id="btnToutProspecter">Tout prospecter</button>
-       <button class="btn btn-secondaire" id="btnVerifierNicoka">Vérifier dans Nicoka</button>
        <button class="btn btn-secondaire" id="btnExportContacts">Exporter en Excel</button>
-       <span class="barre-info" id="infoNicoka"></span>
      </div>
      <div class="carte-table" id="carteMesContacts">
        <div class="table-defilante"><table id="tableMesContacts"></table></div>

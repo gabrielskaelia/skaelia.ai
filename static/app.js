@@ -171,25 +171,18 @@ function optionsRecherche() {
     max_entreprises: maxEnt,
     sources: $$("#fSources input:checked").map((c) => c.value),
     types_entreprise: $$("#fTypes input:checked").map((c) => c.value),
-    teletravail_uniquement: $("#fTeletravail")?.checked || false,
     recherche_amelioree: $("#fRechercheAmelioree")?.checked || false,
   };
 }
 
 async function lancerRecherche() {
-  const poste = $("#fPoste").value.trim();
-  const lieu = $("#fLieu").value.trim();
   const secteur = $("#fSecteur")?.value || "";
-  if (!poste && !secteur) { toast("Indiquez un poste ou choisissez un secteur."); $("#fPoste").focus(); return; }
+  if (!secteur) { toast("Choisis un secteur."); $("#fSecteur")?.focus(); return; }
   const opts = optionsRecherche();
   if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/Indeed)."); return; }
   if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
-  if (opts.recherche_amelioree &&
-      !confirm("La « recherche améliorée » utilise FullEnrich et consomme des crédits (~0,25 par décideur trouvé, plafonné à ~10 crédits par recherche). Lancer quand même ?")) {
-    return;
-  }
   try {
-    await post("/api/lancer", { poste, lieu, secteur, ...opts });
+    await post("/api/lancer", { secteur, ...opts });
   } catch (e) { toast(e.message); return; }
 
   $("#btnLancer").disabled = true;
@@ -203,8 +196,6 @@ async function lancerRecherche() {
 }
 
 $("#btnLancer").addEventListener("click", lancerRecherche);
-$("#fPoste").addEventListener("keydown", (e) => { if (e.key === "Enter") lancerRecherche(); });
-$("#fLieu").addEventListener("keydown", (e) => { if (e.key === "Enter") lancerRecherche(); });
 
 async function interrogerStatut() {
   let statut;
@@ -473,15 +464,7 @@ async function ajouterContacts(contacts) {
     clesSauvegardees = new Set(mesContacts.map(cleContact));
     majCompteurContacts();
     if (r.ajoutes === 0) toast("Déjà dans vos contacts.");
-    else {
-      const verif = r.nicoka_ok ? " — vérifié dans Nicoka" : " (Nicoka non synchronisé)";
-      toast((r.ajoutes === 1 ? "Contact ajouté ✓" : `${r.ajoutes} contacts ajoutés ✓`) + verif);
-    }
-    // Avertissement Nicoka : déjà contactés récemment
-    if (r.recents_nicoka && r.recents_nicoka.length) {
-      const noms = r.recents_nicoka.map((x) => `${x.nom} (${x.jours}j)`).join(", ");
-      toast(`⚠ Déjà contacté(s) dans Nicoka sous ${r.jours}j : ${noms}`);
-    }
+    else toast(r.ajoutes === 1 ? "Contact ajouté ✓" : `${r.ajoutes} contacts ajoutés ✓`);
     if (tableActive === "contacts" && !$("#vueResultats").hidden) dessinerTable();
   } catch (e) { toast(e.message); }
 }
@@ -523,7 +506,7 @@ function dessinerMesContacts() {
   actions.hidden = false;
   vide.hidden = true;
   table.innerHTML =
-    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th>Nicoka</th><th></th><th></th></tr></thead><tbody>" +
+    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>" +
     mesContacts.map((c) => {
       const cle = cleContact(c);
       const offres = c.offres || [];
@@ -543,7 +526,6 @@ function dessinerMesContacts() {
         <td>${lienLinkedin}</td>
         <td>${cellEmail}</td>
         <td>${cellTel}</td>
-        <td>${badgeNicoka(c.nicoka)}</td>
         <td><button class="btn btn-primaire btn-petit btn-prendre" data-cle="${echapper(cle)}">Prendre contact manuellement</button></td>
         <td><button class="btn-suppr" data-cle="${echapper(cle)}" title="Retirer">✕</button></td>
       </tr>`;
@@ -721,38 +703,12 @@ function traduireStatut(s) {
   return { deliverable: "délivrable", risky: "incertain", undeliverable: "invalide", unknown: "inconnu" }[s] || s;
 }
 
-/* Badge du statut Nicoka enregistré à l'ajout du contact.
-   « non prospecté » = pas contacté dans les 50 derniers jours (absent de la
-   base OU dernière action ancienne). « déjà contacté » = action récente. */
-function badgeNicoka(nk) {
-  if (!nk || !nk.verifie) return '<span class="txt-faible">—</span>';
-  if (nk.recent) {
-    const j = nk.jours != null ? ` (${nk.jours}j)` : "";
-    return `<span class="badge badge-erreur">déjà contacté${j}</span>`;
-  }
-  return '<span class="badge badge-ok">non prospecté</span>';
-}
-
 $("#btnFermerPrendreContact").addEventListener("click", () => { $("#voilePrendreContact").hidden = true; });
 $("#voilePrendreContact").addEventListener("click", (e) => {
   if (e.target === $("#voilePrendreContact")) $("#voilePrendreContact").hidden = true;
 });
 
 $("#btnExportContacts")?.addEventListener("click", () => { location.href = "/api/mes-contacts/export"; });
-
-$("#btnVerifierNicoka")?.addEventListener("click", async () => {
-  const btn = $("#btnVerifierNicoka");
-  btn.disabled = true; btn.textContent = "Vérification…";
-  try {
-    const r = await post("/api/mes-contacts/verifier-nicoka");
-    mesContacts = r.contacts;
-    dessinerMesContacts();
-    $("#infoNicoka").textContent =
-      `${r.non_prospectes} non prospecté(s) · ${r.deja_contactes} déjà contacté(s) sous ${r.jours}j`;
-    toast(`Vérifié : ${r.total} contact(s) dans Nicoka ✓`);
-  } catch (e) { toast(e.message); }
-  btn.disabled = false; btn.textContent = "Vérifier dans Nicoka";
-});
 
 /* ---- Tout prospecter : sélection + canal + parcours étape par étape ---- */
 
@@ -877,17 +833,25 @@ $$(".nav-onglet").forEach((b) =>
 
 /* ---------------- démarrage ---------------- */
 
-// Filet anti-remplissage-auto : Chrome insère parfois l'email dans ces champs.
-function nettoyerChampsAuto() {
-  ["#fPoste", "#fLieu"].forEach((sel) => {
-    const el = $(sel);
-    if (el && el.value.includes("@")) el.value = "";
-  });
-}
-[200, 600, 1500].forEach((d) => setTimeout(nettoyerChampsAuto, d));
 
 api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
 api("/api/reglages").then((r) => { fullenrichConfiguree = !!r.fullenrich_configuree; }).catch(() => {});
+
+// Recherche améliorée : confirmation dès qu'on coche (consomme des crédits).
+$("#fRechercheAmelioree")?.addEventListener("change", (e) => {
+  if (e.target.checked &&
+      !confirm("Êtes-vous sûr ? La recherche améliorée consomme davantage de crédits FullEnrich (~0,25 crédit par contact trouvé).")) {
+    e.target.checked = false;
+  }
+});
+
+// Types de contrat : bouton « + » pour révéler les autres que CDI.
+$("#btnPlusContrats")?.addEventListener("click", () => {
+  const supp = $("#contratsSupp");
+  if (!supp) return;
+  supp.hidden = !supp.hidden;
+  $("#btnPlusContrats").textContent = supp.hidden ? "+" : "−";
+});
 chargerMesContacts();
 chargerHistorique();
 detecterExtension();
