@@ -200,7 +200,9 @@ async function lancerRecherche() {
 
   $("#btnLancer").disabled = true;
   $("#vueResultats").hidden = true;
-  $("#suiviTitre").textContent = `Recherche : ${poste}${lieu ? " — " + lieu : ""}`;
+  const regionLabel = $("#fRegion")?.selectedOptions?.[0]?.textContent?.trim() || "";
+  const lieu = regionLabel && regionLabel !== "Toute la France" ? regionLabel : "";
+  $("#suiviTitre").textContent = `Recherche : ${secteur}${lieu ? " — " + lieu : ""}`;
   $("#blocSuivi").hidden = false;
   $("#journal").innerHTML = "";
   $("#suiviSpinner").style.display = "";
