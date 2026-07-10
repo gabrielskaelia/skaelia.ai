@@ -114,7 +114,8 @@ def mettre_a_jour(email_utilisateur, cle, champs):
         donnees = _charger()
         for c in donnees.get(email_utilisateur, []):
             if cle_contact(c) == cle:
-                for k in ("telephone", "email", "poste", "statut_email", "enrichissement"):
+                for k in ("telephone", "email", "poste", "statut_email",
+                          "enrichissement", "email_recherche", "tel_recherche"):
                     if k in champs:
                         c[k] = (champs[k] or "").strip()
                 _sauver(donnees)

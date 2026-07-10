@@ -26,10 +26,18 @@ def main():
     nettoyes = 0
     for contacts in donnees.values():
         for c in contacts:
-            # On conserve les données RÉELLES : Nicoka (CRM) et FullEnrich.
-            if c.get("source_contact") == "nicoka":
-                continue
-            if c.get("enrichissement") == "fait":
+            # On CONSERVE les coordonnées réelles / vérifiées :
+            #   - contacts Nicoka (CRM),
+            #   - enrichis via FullEnrich (email/tél ou l'ancien flag global),
+            #   - emails déjà VÉRIFIÉS (statut délivrable / incertain).
+            verifie = (
+                c.get("source_contact") == "nicoka"
+                or c.get("enrichissement") == "fait"
+                or c.get("email_recherche") == "fait"
+                or c.get("tel_recherche") == "fait"
+                or c.get("statut_email") in ("deliverable", "risky")
+            )
+            if verifie:
                 continue
             if c.get("email") or c.get("telephone"):
                 c["email"] = ""

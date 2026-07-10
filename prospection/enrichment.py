@@ -49,7 +49,7 @@ def _prenom_nom(nom_complet):
     return (nom_complet or "").strip(), ""
 
 
-def enrichir_lot(contacts, timeout=240, log=lambda m: None):
+def enrichir_lot(contacts, champs=("email", "telephone"), timeout=240, log=lambda m: None):
     """Enrichit une liste de contacts.
 
     `contacts` : liste de dicts {nom, entreprise, url_linkedin, domaine}.
@@ -60,13 +60,20 @@ def enrichir_lot(contacts, timeout=240, log=lambda m: None):
     if not cle or not contacts:
         return []
 
+    # Ne demander QUE les champs voulus : l'email et le téléphone se paient
+    # séparément (email ~1 crédit, mobile ~10 crédits).
+    fields = []
+    if "email" in champs:
+        fields.append("contact.work_emails")
+    if "telephone" in champs:
+        fields.append("contact.phones")
     data = []
     for c in contacts:
         prenom, nom = _prenom_nom(c.get("nom"))
         item = {
             "first_name": prenom,
             "last_name": nom,
-            "enrich_fields": ["contact.work_emails", "contact.phones"],
+            "enrich_fields": fields,
         }
         if c.get("url_linkedin"):
             item["linkedin_url"] = c["url_linkedin"].split("?")[0]

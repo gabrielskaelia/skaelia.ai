@@ -530,29 +530,37 @@ def api_ajouter_contacts():
 
 @app.post("/api/mes-contacts/enrichir")
 def api_enrichir_contact():
-    """Enrichissement FullEnrich À LA DEMANDE (consomme des crédits) : trouve
-    l'email pro vérifié et le téléphone d'UN contact, déclenché au clic dans
-    « Prendre contact manuellement ». Un seul appel remplit email + téléphone."""
+    """Enrichissement FullEnrich À LA DEMANDE (consomme des crédits), UN champ à
+    la fois : `champ` = "email" (~1 crédit) ou "telephone" (~10 crédits).
+    Déclenché au clic dans « Prendre contact manuellement »."""
     if not enrichment.est_configure():
         return jsonify({"erreur": "Enrichissement indisponible : ajoute ta clé "
                                   "FullEnrich dans les Réglages."}), 400
-    cle = (request.get_json(force=True) or {}).get("cle", "")
+    donnees = request.get_json(force=True) or {}
+    cle = donnees.get("cle", "")
+    champ = donnees.get("champ", "")
+    if champ not in ("email", "telephone"):
+        return jsonify({"erreur": "Champ à enrichir invalide."}), 400
     contact = next((c for c in contacts_store.lister(session["email"])
                     if contacts_store.cle_contact(c) == cle), None)
     if not contact:
         return jsonify({"erreur": "Contact introuvable."}), 404
 
-    resultats = enrichment.enrichir_lot([contact])
+    resultats = enrichment.enrichir_lot([contact], champs=(champ,))
     r = (resultats[0] if resultats else {}) or {}
-    maj = {"enrichissement": "fait"}
-    if r.get("email"):
-        maj["email"] = r["email"]
-        maj["statut_email"] = r.get("statut_email", "")
-    if r.get("telephone"):
-        maj["telephone"] = r["telephone"]
+    if champ == "email":
+        maj = {"email_recherche": "fait"}
+        if r.get("email"):
+            maj["email"] = r["email"]
+            maj["statut_email"] = r.get("statut_email", "")
+        trouve = bool(r.get("email"))
+    else:
+        maj = {"tel_recherche": "fait"}
+        if r.get("telephone"):
+            maj["telephone"] = r["telephone"]
+        trouve = bool(r.get("telephone"))
     contact_maj = contacts_store.mettre_a_jour(session["email"], cle, maj)
-    return jsonify({"ok": True, "contact": contact_maj,
-                    "trouve": bool(r.get("email") or r.get("telephone"))})
+    return jsonify({"ok": True, "contact": contact_maj, "trouve": trouve})
 
 
 @app.post("/api/mes-contacts/verifier-nicoka")
