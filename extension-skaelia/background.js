@@ -17,7 +17,7 @@ async function effacerPending(tabId) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Demande d'envoi émise par l'application (onglet croisia.me)
+  // Demande d'envoi émise par l'application (onglet ai.skaelia.com)
   if (msg.type === "SEND_LINKEDIN") {
     (async () => {
       const appTabId = sender.tab.id;

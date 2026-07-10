@@ -1,7 +1,7 @@
 # Extension Skaelia — Envoi LinkedIn direct
 
 Cette petite extension Chrome permet, depuis l'outil de prospection
-(croisia.me), d'envoyer un message LinkedIn **en un clic** dans ta propre
+(ai.skaelia.com), d'envoyer un message LinkedIn **en un clic** dans ta propre
 session LinkedIn (comme le fait Lemlist).
 
 ## Installation (une seule fois, ~1 minute)
@@ -13,7 +13,7 @@ session LinkedIn (comme le fait Lemlist).
 5. L'extension « Skaelia Prospection — Envoi LinkedIn » apparaît dans la liste.
 
 Vérification : dans l'outil, ouvre **Réglages** → section « Envoi LinkedIn » doit
-afficher **« installée ✓ »**. (Recharge la page croisia.me après installation.)
+afficher **« installée ✓ »**. (Recharge la page ai.skaelia.com après installation.)
 
 ## Utilisation
 
@@ -35,5 +35,5 @@ afficher **« installée ✓ »**. (Recharge la page croisia.me après installat
 
 ## Confidentialité
 
-L'extension n'agit que sur `croisia.me` et `linkedin.com`, et n'envoie aucune
+L'extension n'agit que sur `ai.skaelia.com` et `linkedin.com`, et n'envoie aucune
 donnée ailleurs. Tout se passe dans ton navigateur.

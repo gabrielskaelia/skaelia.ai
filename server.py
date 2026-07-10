@@ -28,8 +28,9 @@ FICHIER_CONFIG = RACINE / "config.json"
 app = Flask(__name__)
 app.secret_key = auth.cle_secrete()
 app.permanent_session_lifetime = 60 * 60 * 24 * 30  # 30 jours
-# Derrière Cloudflare Tunnel : respecter les en-têtes X-Forwarded-* pour que
-# les liens (emails de validation) soient bien en https://croisia.me
+# Derrière un reverse proxy HTTPS (Caddy) : respecter les en-têtes
+# X-Forwarded-* pour que les liens (emails de validation) soient bien en
+# https://ai.skaelia.com
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # Cookie de session : "Secure" seulement en ligne (HTTPS via le tunnel).
 # En local (http://localhost) il doit rester non-Secure sinon la connexion casse.

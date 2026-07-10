@@ -1,0 +1,6 @@
+# Caddy — reverse proxy HTTPS pour l'outil de prospection Skaelia.
+# À copier dans /etc/caddy/Caddyfile sur le VPS.
+# Caddy obtient et renouvelle tout seul le certificat Let's Encrypt.
+ai.skaelia.com {
+    reverse_proxy 127.0.0.1:5173
+}

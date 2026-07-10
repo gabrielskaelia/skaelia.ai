@@ -1,4 +1,4 @@
-/* S'exécute sur croisia.me : pont entre l'application web et l'extension.
+/* S'exécute sur ai.skaelia.com : pont entre l'application web et l'extension.
    L'app parle par window.postMessage ; l'extension répond de façon asynchrone
    (l'envoi traverse une navigation LinkedIn, donc le résultat arrive plus tard). */
 (function () {
