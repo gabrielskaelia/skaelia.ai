@@ -204,13 +204,14 @@ document.querySelectorAll("#suggestionsContacts .chip-offre").forEach((b) =>
 );
 
 function optionsRecherche() {
-  // Nombre de contacts VISÉ : on ratisse assez d'entreprises (~1,5 contact
-  // trouvé par entreprise en moyenne) et on s'arrête dès la cible atteinte.
-  const nbContacts = parseInt($("#fNbContacts")?.value, 10) || 40;
-  // Vivier d'entreprises large (~1 contact utile par entreprise en moyenne) :
-  // sans coût quand le marché est riche (on s'arrête dès la cible), mais permet
-  // d'atteindre le nombre voulu quand il est mince.
-  const maxEnt = Math.max(4, Math.ceil(nbContacts * 1.4));
+  // Nombre de contacts VISÉ (obligatoire) : on ratisse assez d'entreprises
+  // (~1 contact utile par entreprise en moyenne) et on s'arrête dès la cible.
+  const nbContacts = parseInt($("#fNbContacts")?.value, 10);
+  // Nombre d'entreprises : saisi par l'utilisateur (doit rester inférieur au
+  // nombre de contacts), sinon vivier automatique assez large pour atteindre
+  // la cible même quand le marché est mince.
+  const nbEntSaisi = parseInt($("#fNbEntreprises")?.value, 10);
+  const maxEnt = nbEntSaisi > 0 ? nbEntSaisi : Math.max(4, Math.ceil((nbContacts || 40) * 1.4));
   return {
     contrats: $$("#fContrats input:checked").map((c) => c.value),
     region: $("#fRegion")?.value || "",
@@ -226,19 +227,36 @@ function optionsRecherche() {
 
 async function lancerRecherche() {
   const secteur = $("#fSecteur")?.value || "";
-  if (!secteur) { toast("Choisis un secteur."); $("#fSecteur")?.focus(); return; }
+  const motsCles = ($("#fMotsCles")?.value || "").trim();
+  if (!secteur && !motsCles) {
+    toast("Indique un poste / des mots-clés, ou choisis un secteur.");
+    $("#fMotsCles")?.focus(); return;
+  }
+  const nbContacts = parseInt($("#fNbContacts")?.value, 10);
+  if (!nbContacts || nbContacts < 1) {
+    toast("Indique le nombre de contacts recherché (obligatoire).");
+    $("#fNbContacts")?.focus(); return;
+  }
+  const nbEnt = parseInt($("#fNbEntreprises")?.value, 10);
+  if ($("#fNbEntreprises")?.value && (!nbEnt || nbEnt < 1)) {
+    toast("Nombre d'entreprises invalide."); $("#fNbEntreprises")?.focus(); return;
+  }
+  if (nbEnt && nbEnt >= nbContacts) {
+    toast("Le nombre d'entreprises doit être inférieur au nombre de contacts.");
+    $("#fNbEntreprises")?.focus(); return;
+  }
   const opts = optionsRecherche();
   if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/Indeed)."); return; }
   if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
   try {
-    await post("/api/lancer", { secteur, ...opts });
+    await post("/api/lancer", { secteur, poste: motsCles, ...opts });
   } catch (e) { toast(e.message); return; }
 
   $("#btnLancer").disabled = true;
   $("#vueResultats").hidden = true;
   const regionLabel = $("#fRegion")?.selectedOptions?.[0]?.textContent?.trim() || "";
   const lieu = regionLabel && regionLabel !== "Toute la France" ? regionLabel : "";
-  $("#suiviTitre").textContent = `Recherche : ${secteur}${lieu ? " — " + lieu : ""}`;
+  $("#suiviTitre").textContent = `Recherche : ${motsCles || secteur}${lieu ? " — " + lieu : ""}`;
   $("#blocSuivi").hidden = false;
   $("#journal").innerHTML = "";
   $("#suiviSpinner").style.display = "";

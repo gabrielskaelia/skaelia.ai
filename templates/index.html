@@ -48,6 +48,10 @@
         <div class="opt-titre">⚙ Prospection auto</div>
         <div class="opt-grille">
           <label class="champ">
+            <span class="champ-libelle">Poste / mots-clés <em>(optionnel)</em></span>
+            <input type="text" id="fMotsCles" placeholder="ex. : data engineer, comptable, chef de projet…" autocomplete="off">
+          </label>
+          <label class="champ">
             <span class="champ-libelle">Secteur</span>
             <select id="fSecteur">
               <option value="">Tous les secteurs</option>
@@ -121,8 +125,8 @@
             </select>
           </label>
           <label class="champ">
-            <span class="champ-libelle">Nombre de contacts</span>
-            <input type="number" id="fNbContacts" min="5" max="400" step="5" value="40" list="contactsSuggestions" autocomplete="off">
+            <span class="champ-libelle">Nombre de contacts <em>(obligatoire)</em></span>
+            <input type="number" id="fNbContacts" min="1" max="400" value="40" list="contactsSuggestions" autocomplete="off" required>
             <datalist id="contactsSuggestions">
               <option value="20"></option>
               <option value="40"></option>
@@ -135,6 +139,11 @@
               <button type="button" class="chip-offre" data-val="80">80</button>
               <button type="button" class="chip-offre" data-val="150">150</button>
             </div>
+          </label>
+          <label class="champ">
+            <span class="champ-libelle">Nombre d'entreprises <em>(optionnel)</em></span>
+            <input type="number" id="fNbEntreprises" min="1" max="400" placeholder="auto" autocomplete="off">
+            <small class="txt-faible">Doit rester inférieur au nombre de contacts. Vide = automatique.</small>
           </label>
           <div class="champ">
             <span class="champ-libelle">Plateformes</span>
