@@ -172,6 +172,7 @@ function optionsRecherche() {
     sources: $$("#fSources input:checked").map((c) => c.value),
     types_entreprise: $$("#fTypes input:checked").map((c) => c.value),
     teletravail_uniquement: $("#fTeletravail")?.checked || false,
+    recherche_amelioree: $("#fRechercheAmelioree")?.checked || false,
   };
 }
 
@@ -183,6 +184,10 @@ async function lancerRecherche() {
   const opts = optionsRecherche();
   if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/Indeed)."); return; }
   if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
+  if (opts.recherche_amelioree &&
+      !confirm("La « recherche améliorée » utilise FullEnrich et consomme des crédits (~0,25 par décideur trouvé, plafonné à ~10 crédits par recherche). Lancer quand même ?")) {
+    return;
+  }
   try {
     await post("/api/lancer", { poste, lieu, secteur, ...opts });
   } catch (e) { toast(e.message); return; }

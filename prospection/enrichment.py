@@ -10,6 +10,7 @@ L'API FullEnrich est asynchrone (« waterfall » sur plusieurs sources) :
 La clé API est dans config.json -> "fullenrich_api_key".
 """
 import json
+import re
 import time
 from pathlib import Path
 
@@ -124,3 +125,74 @@ def _extraire(lignes, n):
     while len(resultats) < n:
         resultats.append({"email": "", "statut_email": "", "telephone": ""})
     return resultats[:n]
+
+
+# --- Recherche de décideurs (FullEnrich People Search) -----------------------
+# La recherche coûte ~0,25 crédit par personne renvoyée (l'enrichissement
+# email/téléphone se fait séparément, à la demande). Utilisée uniquement quand
+# l'option « recherche améliorée » est cochée, en repli du gratuit (DuckDuckGo).
+
+TITRES_DECIDEURS_DEFAUT = [
+    "responsable recrutement", "chargé de recrutement", "talent acquisition",
+    "DRH", "RRH", "responsable ressources humaines",
+    "directeur général", "CEO", "gérant", "fondateur", "président",
+]
+
+
+def _titres_depuis_roles(roles):
+    """Transforme des filtres façon moteur de recherche
+    (['"a" OR "b"', 'c OR d']) en liste d'intitulés simples pour FullEnrich."""
+    titres = []
+    for bloc in roles or []:
+        for t in re.split(r"\s+OR\s+", bloc):
+            t = t.strip().strip('"').strip()
+            if t and t.lower() not in [x.lower() for x in titres]:
+                titres.append(t)
+    return titres
+
+
+def rechercher_decideurs(entreprise, roles=None, max_contacts=2, log=lambda m: None):
+    """Trouve des décideurs d'une entreprise via FullEnrich People Search.
+    Retourne [{entreprise, nom, poste, entreprise_profil, url_linkedin, extrait}]
+    (même format que linkedin_contacts.chercher_contacts).
+    Coûte ~0,25 crédit par personne renvoyée. Liste vide si non configuré/erreur."""
+    cle = _cle_api()
+    entreprise = (entreprise or "").strip()
+    if not cle or not entreprise:
+        return []
+    titres = _titres_depuis_roles(roles) or TITRES_DECIDEURS_DEFAUT
+    limite = max(1, int(max_contacts))
+    corps = {
+        "limit": limite,
+        "offset": 0,
+        # OU sur les intitulés, ET avec l'entreprise (logique FullEnrich).
+        "current_company_names": [{"value": entreprise, "exact_match": False}],
+        "current_position_titles": [{"value": t, "exact_match": False} for t in titres],
+    }
+    entetes = {"Authorization": "Bearer " + cle, "Content-Type": "application/json"}
+    try:
+        rep = requests.post(BASE + "/people/search", json=corps, headers=entetes, timeout=30)
+        if rep.status_code == 401:
+            log("FullEnrich Search : clé API invalide")
+            return []
+        rep.raise_for_status()
+        data = rep.json()
+    except Exception as e:
+        log(f"FullEnrich Search erreur ({entreprise}) : {e}")
+        return []
+
+    contacts = []
+    for pers in (data.get("people") or [])[:limite]:
+        emploi = (pers.get("employment") or {}).get("current") or {}
+        reseau = (pers.get("social_profiles") or {}).get("professional_network") or {}
+        nom = (pers.get("full_name")
+               or " ".join(x for x in [pers.get("first_name"), pers.get("last_name")] if x))
+        contacts.append({
+            "entreprise": entreprise,
+            "nom": (nom or "").strip(),
+            "poste": (emploi.get("title") or "").strip(),
+            "entreprise_profil": ((emploi.get("company") or {}).get("name") or "").strip(),
+            "url_linkedin": (reseau.get("url") or "").split("?")[0],
+            "extrait": "",
+        })
+    return [c for c in contacts if c["nom"]]

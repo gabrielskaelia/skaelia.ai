@@ -399,6 +399,8 @@ def lancer():
                 params[cle] = int(donnees[cle])
         if donnees.get("teletravail_uniquement"):
             params["teletravail_uniquement"] = True
+        if donnees.get("recherche_amelioree"):
+            params["recherche_amelioree"] = True
         job.update({"etat": "en_cours", "logs": [], "resultats": None,
                     "erreur": "", "titre": poste + (f" — {params['lieu']}" if params["lieu"] else "")})
         threading.Thread(target=_executer_en_fond,

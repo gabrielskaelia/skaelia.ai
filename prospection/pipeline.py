@@ -28,8 +28,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
-from . import (companies, emails, export_excel, jobs_hellowork, jobs_indeed,
-               jobs_linkedin, linkedin_contacts, nicoka)
+from . import (companies, emails, enrichment, export_excel, jobs_hellowork,
+               jobs_indeed, jobs_linkedin, linkedin_contacts, nicoka)
 
 RACINE = Path(__file__).parent.parent
 DOSSIER_DONNEES = RACINE / "data"
@@ -37,6 +37,11 @@ DOSSIER_RESULTATS = RACINE / "resultats"
 _VERROU_HISTORIQUE = threading.Lock()
 
 CONTRATS_CONNUS = ["CDI", "CDD", "Intérim", "Alternance", "Stage", "Indépendant"]
+
+# Recherche améliorée (FullEnrich, payante) : nombre max d'entreprises réellement
+# interrogées via FullEnrich par recherche, pour borner le coût (~0,25 crédit par
+# décideur). Au-delà, on repasse au gratuit (DuckDuckGo).
+PLAFOND_ENTREPRISES_FULLENRICH = 20
 
 DEFAUTS = {
     "lieu": "",
@@ -52,6 +57,7 @@ DEFAUTS = {
     "nb_contacts_cible": 0,
     "contacts_max_par_role": 2,
     "roles_cibles": None,
+    "recherche_amelioree": False,
     "exclusions": [],
     "clients": [],
     "types_entreprise": ["prospect", "client"],
@@ -235,7 +241,11 @@ def executer(params, log=print):
         else:
             log(f"Recherche des décideurs pour {len(cibles)} entreprises (en parallèle)…")
         fait = {"n": 0}
+        _fe = {"n": 0}  # nb d'entreprises interrogées via FullEnrich (plafonné)
         verrou = threading.Lock()
+        recherche_amelioree = bool(p.get("recherche_amelioree")) and enrichment.est_configure()
+        if recherche_amelioree:
+            log(f"Recherche améliorée FullEnrich activée (plafond {PLAFOND_ENTREPRISES_FULLENRICH} entreprises, repli DuckDuckGo au-delà).")
 
         def _pour_entreprise(ent):
             # Entreprise cliente : le contact est déjà dans Nicoka, on le
@@ -245,12 +255,29 @@ def executer(params, log=print):
                     ent["entreprise"], max_contacts=int(p["contacts_max_par_role"]) + 1)
                 origine = "Nicoka"
             else:
-                trouves = linkedin_contacts.chercher_contacts(
-                    ent["entreprise"],
-                    roles=p["roles_cibles"],
-                    max_contacts=int(p["contacts_max_par_role"]) + 1,
-                )
                 origine = "LinkedIn"
+                trouves = []
+                # Recherche améliorée (FullEnrich, payante) : plafonnée en nombre
+                # d'entreprises pour maîtriser les crédits ; repli DuckDuckGo
+                # au-delà du plafond ou si FullEnrich ne renvoie rien.
+                if recherche_amelioree:
+                    with verrou:
+                        sous_plafond = _fe["n"] < PLAFOND_ENTREPRISES_FULLENRICH
+                        if sous_plafond:
+                            _fe["n"] += 1
+                    if sous_plafond:
+                        trouves = enrichment.rechercher_decideurs(
+                            ent["entreprise"], roles=p["roles_cibles"],
+                            max_contacts=int(p["contacts_max_par_role"]), log=log)
+                        origine = "FullEnrich"
+                if not trouves:
+                    trouves = linkedin_contacts.chercher_contacts(
+                        ent["entreprise"],
+                        roles=p["roles_cibles"],
+                        max_contacts=int(p["contacts_max_par_role"]) + 1,
+                    )
+                    if origine == "FullEnrich":
+                        origine = "FullEnrich→LinkedIn"
             for c in trouves:
                 c.setdefault("email", "")
                 c.setdefault("statut_email", "")
