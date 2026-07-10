@@ -320,7 +320,7 @@ function offresDeLEntreprise(nomEntreprise) {
   return offres.slice(0, 4).map((o) =>
     `<div class="offre-ligne">
        <a class="offre-lien" href="${echapper(o.url)}" target="_blank" rel="noopener">
-         ${o.nouveau ? '<span class="badge badge-nouveau">NOUVEAU</span> ' : ""}${echapper(o.titre)}
+         ${echapper(o.titre)}
        </a>${o.date ? `<span class="offre-date">${echapper(o.date)}</span>` : ""}
      </div>`).join("") + (offres.length > 4 ? `<span class="badge badge-neutre">+${offres.length - 4} autres</span>` : "");
 }
