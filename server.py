@@ -93,6 +93,7 @@ def api_connexion():
     if not ok:
         return jsonify({"erreur": erreur}), 401
     session.permanent = False  # expire à la fermeture du navigateur
+    session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
     session["email"] = (donnees.get("email") or "").strip().lower()
     return jsonify({"ok": True})
 
@@ -159,6 +160,7 @@ def api_definir_mdp():
     if not email:
         return jsonify({"erreur": erreur}), 400
     session.permanent = False  # expire à la fermeture du navigateur
+    session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
     session["email"] = email
     return jsonify({"ok": True})
 
@@ -242,6 +244,7 @@ def google_callback():
     ok, statut = auth.valider_connexion_google(email)
     if ok:
         session.permanent = False  # expire à la fermeture du navigateur
+        session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
         session["email"] = email
         return redirect("/")
 
@@ -297,7 +300,12 @@ def _version_assets():
 
 @app.get("/")
 def accueil():
-    return render_template("index.html", v=_version_assets())
+    # « frais » = connexion tout juste effectuée. Le front pose alors un marqueur
+    # d'onglet ; sans lui (onglet fermé puis rouvert, ou session restaurée par le
+    # navigateur), le front déconnecte automatiquement. Un simple rafraîchissement
+    # conserve la session (le marqueur d'onglet survit au rechargement).
+    frais = session.pop("_frais", False)
+    return render_template("index.html", v=_version_assets(), frais=frais)
 
 
 # ---------------------------------------------------------------- réglages

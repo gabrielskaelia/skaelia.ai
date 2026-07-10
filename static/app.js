@@ -1,6 +1,19 @@
 /* Skaelia Prospection — logique client */
 "use strict";
 
+// Garde-fou de session : on se déconnecte quand l'onglet/navigateur a été fermé
+// puis rouvert (le cookie peut être restauré par le navigateur, mais pas ce
+// marqueur d'onglet). Un simple rafraîchissement conserve la session.
+(function () {
+  try {
+    if (sessionStorage.getItem("se_actif")) return;         // onglet déjà actif
+    if (window.__frais) { sessionStorage.setItem("se_actif", "1"); return; }  // connexion fraîche
+    // Onglet rouvert / session restaurée par le navigateur : on déconnecte.
+    document.documentElement.style.visibility = "hidden";
+    fetch("/api/deconnexion", { method: "POST" }).finally(() => location.replace("/"));
+  } catch (e) { /* sessionStorage indisponible : on ne bloque pas */ }
+})();
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
