@@ -438,3 +438,12 @@ td a:hover { text-decoration: underline; }
 .cnx-texte { display: flex; flex-direction: column; gap: 3px; }
 .cnx-avance { margin-top: 6px; }
 .cnx-avance summary { cursor: pointer; }
+
+/* ---- Réglages : sections repliables ---- */
+.reg-section { padding: 10px 0; border-bottom: 1px solid var(--bordure, #e5e5e2); }
+.reg-section:last-of-type { border-bottom: none; }
+.reg-ligne { display: flex; align-items: center; gap: 10px; }
+.reg-ligne strong { flex: 0 0 auto; }
+.reg-bouton { margin-left: auto; }
+.reg-zone { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.oc-mdp { background: #6b6b68; }

@@ -470,7 +470,6 @@ async function chargerReglages() {
   fullenrichConfiguree = !!r.fullenrich_configuree;
   emailPersoConfigure = !!r.email_perso_configure;
   emailPersoAdresse = r.email_perso_adresse || "";
-  $("#etatSmtp").textContent = emailPersoConfigure ? "connectée ✓" : "non connectée";
   // Pré-remplissage de la connexion Gmail personnelle
   $("#rSmtpUtilisateur").value = r.email_perso_adresse || "";
   $("#rSmtpHote").value = r.email_perso_hote || "smtp.gmail.com";
@@ -502,25 +501,36 @@ $("#btnReglages").addEventListener("click", async () => {
   await chargerReglages();
   $("#mAncien").value = ""; $("#mNouveau").value = ""; $("#msgMdp").hidden = true;
   $("#rSmtpMdp").value = "";
+  // Toutes les sections repliées à l'ouverture
+  ["#zoneLinkedin", "#zoneGmail", "#zoneMdp"].forEach((s) => { $(s).hidden = true; });
   $("#voileReglages").hidden = false;
   majBlocConnexions();
 });
 $("#btnFermerReglages").addEventListener("click", () => { $("#voileReglages").hidden = true; });
 
-$("#btnSauverReglages").addEventListener("click", async () => {
-  const corps = {};
-  if ($("#rSmtpUtilisateur").value.trim()) {
-    corps.smtp_perso = {
+/* Sections dépliantes : le bouton révèle les champs correspondants */
+function basculerZone(idZone) {
+  const zone = $(idZone);
+  zone.hidden = !zone.hidden;
+}
+$("#btnRelierLinkedin")?.addEventListener("click", () => basculerZone("#zoneLinkedin"));
+$("#btnRelierGmail")?.addEventListener("click", () => basculerZone("#zoneGmail"));
+$("#btnMontrerMdp")?.addEventListener("click", () => basculerZone("#zoneMdp"));
+
+$("#btnSauverGmail")?.addEventListener("click", async () => {
+  if (!$("#rSmtpUtilisateur").value.trim()) { toast("Indique ton adresse Gmail."); return; }
+  await post("/api/reglages", {
+    smtp_perso: {
       hote: $("#rSmtpHote").value,
       port: $("#rSmtpPort").value,
       utilisateur: $("#rSmtpUtilisateur").value,
       mot_de_passe: $("#rSmtpMdp").value,
-    };
-  }
-  await post("/api/reglages", corps);
+    },
+  });
   await chargerReglages();
-  toast("Réglages enregistrés ✓");
-  $("#voileReglages").hidden = true;
+  await majBlocConnexions();
+  $("#zoneGmail").hidden = true;
+  toast("Gmail relié ✓");
 });
 
 /* ---------------- carnet « Mes contacts » ---------------- */
