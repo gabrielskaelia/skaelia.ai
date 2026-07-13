@@ -158,15 +158,17 @@ function envoyerViaExtension(profileUrl, message, subject) {
   });
 }
 
-/* Demande à l'extension si une session LinkedIn est ouverte dans ce Chrome. */
+/* Demande à l'extension si une session LinkedIn est ouverte dans ce Chrome.
+   `repondu` distingue une extension à jour (qui répond) d'une trop ancienne
+   (présente mais sans le support de cette vérification → à recharger). */
 function verifierSessionLinkedin() {
   return new Promise((resolve) => {
-    if (!extensionPresente) return resolve({ connecte: false, extension: false });
+    if (!extensionPresente) return resolve({ connecte: false, extension: false, repondu: false });
     const id = "lk" + Date.now() + Math.random().toString(16).slice(2);
-    _attentesExt.set(id, (d) => resolve({ connecte: !!d.connecte, extension: true }));
+    _attentesExt.set(id, (d) => resolve({ connecte: !!d.connecte, extension: true, repondu: true }));
     window.postMessage({ source: "skaelia-app", type: "CHECK_LINKEDIN", id }, "*");
     setTimeout(() => {
-      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ connecte: false, extension: true }); }
+      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ connecte: false, extension: true, repondu: false }); }
     }, 6000);
   });
 }
@@ -500,6 +502,12 @@ async function majBlocConnexions() {
     return;
   }
   const r = await verifierSessionLinkedin();
+  if (!r.repondu) {   // extension présente mais trop ancienne
+    $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${badge(false, "", "extension à recharger")}</span>`;
+    $("#cnxLinkedinAide").textContent =
+      "Votre extension Skaelia est trop ancienne. Allez sur chrome://extensions, cliquez sur ↻ (recharger) sur la carte Skaelia, puis rechargez cette page.";
+    return;
+  }
   $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${
     badge(r.connecte, "connecté ✓", "session LinkedIn fermée")}</span>`;
   $("#cnxLinkedinAide").textContent = r.connecte
@@ -1099,6 +1107,11 @@ $$(".nav-onglet").forEach((b) =>
 let _surveilObLinkedin = null;
 
 function ouvrirOnboarding(etape) {
+  // L'assistant n'apparaît qu'UNE fois, au setup du compte : on le marque
+  // « vu » dès l'ouverture. Les connexions non faites se règlent ensuite
+  // dans les Réglages — plus aucun rappel aux connexions suivantes.
+  post("/api/onboarding-vu", {}).catch(() => {});
+  sessionStorage.setItem("ob_encours", "1");   // pour reprendre après le retour Gmail
   detecterExtension();
   majEtapeOnboarding(etape);
   $("#voileOnboarding").hidden = false;
@@ -1129,12 +1142,19 @@ async function majEtatObLinkedin() {
   }
   $("#obLinkedinAide").textContent = "";
   const r = await verifierSessionLinkedin();
+  if (!r.repondu) {   // extension présente mais trop ancienne
+    el.textContent = "extension à recharger"; el.className = "badge badge-erreur";
+    $("#obLinkedinAide").textContent =
+      "Ton extension Skaelia est trop ancienne : va sur chrome://extensions, clique sur ↻ sur la carte Skaelia, puis reviens. (Tu peux aussi terminer et le faire plus tard.)";
+    return;
+  }
   el.textContent = r.connecte ? "connecté ✓" : "non connecté";
   el.className = "badge " + (r.connecte ? "badge-ok" : "badge-neutre");
 }
 
 async function terminerOnboarding() {
   if (_surveilObLinkedin) { clearInterval(_surveilObLinkedin); _surveilObLinkedin = null; }
+  sessionStorage.removeItem("ob_encours");
   try { await post("/api/onboarding-vu", {}); } catch (e) { /* on ferme quand même */ }
   $("#voileOnboarding").hidden = true;
 }
@@ -1179,10 +1199,14 @@ $("#obConnecterLinkedin")?.addEventListener("click", () => {
   if (u.admin) $("#navComptes").hidden = false;
   try { await chargerReglages(); } catch (e) { /* réglages indisponibles */ }
 
-  // Assistant de bienvenue à la première connexion. Si Gmail vient d'être relié
-  // (retour de Google) ou l'est déjà, on démarre directement sur l'étape LinkedIn.
+  // Assistant de bienvenue : UNIQUEMENT au setup du compte (première connexion).
   if (u.onboarding_a_faire) {
-    ouvrirOnboarding(gmailOauth || retourGmail ? "linkedin" : "gmail");
+    ouvrirOnboarding(gmailOauth ? "linkedin" : "gmail");
+  } else if (retourGmail && sessionStorage.getItem("ob_encours")) {
+    // On revient de la connexion Gmail lancée PENDANT l'assistant : on enchaîne
+    // sur l'étape LinkedIn. (Une connexion Gmail lancée depuis les Réglages, elle,
+    // ne rouvre pas l'assistant.)
+    ouvrirOnboarding("linkedin");
   }
 })();
 
