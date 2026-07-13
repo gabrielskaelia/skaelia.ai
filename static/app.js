@@ -253,7 +253,7 @@ async function lancerRecherche() {
     $("#fNbEntreprises")?.focus(); return;
   }
   const opts = optionsRecherche();
-  if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/Indeed)."); return; }
+  if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/LinkedIn)."); return; }
   if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
   try {
     await post("/api/lancer", { secteur, poste: motsCles, ...opts });
