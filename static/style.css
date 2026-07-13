@@ -518,27 +518,33 @@ td a:hover { text-decoration: underline; }
 .ob-etape { display: flex; flex-direction: column; gap: 10px; }
 .ob-etape .reg-ligne { margin-top: 4px; }
 
-/* ---- Contacts (résultats) : cartes avec avatar ---- */
-.contact-carte {
-  display: flex; align-items: flex-start; gap: 16px;
-  padding: 16px 22px; border-top: 1px solid #F4F3EE;
+/* ---- Contacts (résultats) : mise en colonnes avec avatar ---- */
+.contacts-entete, .contact-carte {
+  display: grid;
+  grid-template-columns: minmax(0,1.5fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,2fr) auto auto;
+  gap: 16px; align-items: start;
 }
-#listeContacts > .contact-carte:first-child { border-top: none; }
+.contacts-entete {
+  padding: 12px 22px; font-size: 12px; font-weight: 600; color: var(--texte-2);
+  border-bottom: 1px solid var(--bordure);
+}
+.contact-carte { padding: 16px 22px; border-top: 1px solid #F4F3EE; }
+#listeContacts > .contact-carte:first-of-type { border-top: none; }
+.contact-tete { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .contact-avatar {
-  width: 40px; height: 40px; border-radius: 999px; flex: 0 0 auto;
+  width: 38px; height: 38px; border-radius: 999px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
   background: var(--accent-doux); color: var(--accent);
-  font-weight: 700; font-size: 14px;
+  font-weight: 700; font-size: 13px;
 }
-.contact-ident { width: 190px; flex: 0 0 auto; }
-.contact-nom { font-weight: 700; color: var(--texte); font-size: 13.5px; }
-.contact-role { color: #8A8A84; font-size: 12.5px; margin-top: 2px; }
-.contact-entreprise { color: #9A9A95; font-size: 12.5px; margin-top: 2px; }
+.contact-nom { font-weight: 700; color: var(--texte); font-size: 13.5px; min-width: 0; }
+.contact-col { font-size: 12.5px; color: #5B6270; min-width: 0; padding-top: 3px; }
+.contact-entreprise { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .contact-offres {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+  min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 1px;
 }
 .contact-actions {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
 }
 .contact-actions .lien-profil { font-weight: 600; font-size: 12.5px; color: var(--accent); }
-.contact-suppr { flex: 0 0 auto; align-self: flex-start; }
+.contact-suppr { align-self: flex-start; }

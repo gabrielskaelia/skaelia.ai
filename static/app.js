@@ -412,26 +412,31 @@ function dessinerTable() {
       liste.innerHTML = "<div style='padding:24px; color:var(--texte-2)'>Aucun contact dans cette recherche.</div>";
       return;
     }
-    liste.innerHTML = resultats.contacts.map((c, i) => {
-      const dansCarnet = clesSauvegardees.has(cleContact(c));
-      const profil = c.url_linkedin
-        ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
-        : "";
-      const ajout = dansCarnet
-        ? '<span class="badge badge-ok">ajouté ✓</span>'
-        : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
-      return `<div class="contact-carte">
-        <span class="contact-avatar">${echapper(initiales(c.nom))}</span>
-        <div class="contact-ident">
-          <div class="contact-nom">${echapper(c.nom)}</div>
-          <div class="contact-role">${echapper(c.poste)}</div>
-          <div class="contact-entreprise">${echapper(c.entreprise)}${badgeType(c.type)}</div>
+    liste.innerHTML =
+      `<div class="contacts-entete">
+        <span>Contact</span><span>Poste du contact</span><span>Entreprise</span>
+        <span>Offres publiées</span><span></span><span></span>
+      </div>` +
+      resultats.contacts.map((c, i) => {
+        const dansCarnet = clesSauvegardees.has(cleContact(c));
+        const profil = c.url_linkedin
+          ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
+          : "";
+        const ajout = dansCarnet
+          ? '<span class="badge badge-ok">ajouté ✓</span>'
+          : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
+        return `<div class="contact-carte">
+        <div class="contact-tete">
+          <span class="contact-avatar">${echapper(initiales(c.nom))}</span>
+          <span class="contact-nom">${echapper(c.nom)}</span>
         </div>
+        <div class="contact-col contact-poste">${echapper(c.poste)}</div>
+        <div class="contact-col contact-entreprise">${echapper(c.entreprise)}${badgeType(c.type)}</div>
         <div class="contact-offres">${offresDeLEntreprise(c.entreprise)}</div>
         <div class="contact-actions">${profil}${ajout}</div>
         <button class="btn-suppr contact-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button>
       </div>`;
-    }).join("");
+      }).join("");
     liste.querySelectorAll(".btn-ajout").forEach((b) =>
       b.addEventListener("click", () => ajouterContacts([resultats.contacts[+b.dataset.idx]]))
     );
