@@ -293,6 +293,13 @@ def executer(params, log=print):
     type_par_ent = {companies._normaliser(e["entreprise"]): e.get("type") for e in entreprises}
     for o in offres:
         o["type"] = type_par_ent.get(companies._normaliser(o.get("entreprise", "")), "")
+    # Si un type précis est demandé (ex. « Clients »), l'onglet Offres ne doit
+    # montrer QUE les offres des entreprises de ce type — strictement nos clients
+    # (mêmes que ceux des messages), pas les homonymes remontés par les sources.
+    if types_voulus != {"prospect", "client"}:
+        avant = len(offres)
+        offres = [o for o in offres if o.get("type") in types_voulus]
+        log(f"Offres filtrées sur le type ({', '.join(sorted(types_voulus))}) : {len(offres)}/{avant}")
 
     # --- 3. Décideurs (sans email : le vrai email + téléphone sont trouvés à
     #        l'ajout du contact, via FullEnrich) — entreprises en parallèle ---
