@@ -730,7 +730,7 @@ function dessinerMesContacts() {
   actions.hidden = false;
   vide.hidden = true;
   table.innerHTML =
-    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>" +
+    `<thead><tr><th><input type="checkbox" id="mcToutSel" title="Tout sélectionner"></th><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>` +
     mesContacts.map((c) => {
       const cle = cleContact(c);
       const offres = c.offres || [];
@@ -743,6 +743,7 @@ function dessinerMesContacts() {
       const cellEmail = c.email ? echapper(c.email) : '<span class="txt-faible">—</span>';
       const cellTel = c.telephone ? echapper(c.telephone) : '<span class="txt-faible">—</span>';
       return `<tr>
+        <td><input type="checkbox" class="mc-sel" data-cle="${echapper(cle)}"></td>
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
         <td>${echapper(c.entreprise)}</td>
@@ -763,6 +764,16 @@ function dessinerMesContacts() {
   table.querySelectorAll(".btn-suppr").forEach((b) =>
     b.addEventListener("click", () => supprimerContact(b.dataset.cle))
   );
+  // Case « tout sélectionner »
+  $("#mcToutSel")?.addEventListener("change", (e) => {
+    table.querySelectorAll(".mc-sel").forEach((chk) => { chk.checked = e.target.checked; });
+  });
+}
+
+/* Contacts cochés dans le tableau « Mes contacts ». */
+function contactsSelectionnes() {
+  const cles = [...document.querySelectorAll("#tableMesContacts .mc-sel:checked")].map((c) => c.dataset.cle);
+  return mesContacts.filter((c) => cles.includes(cleContact(c)));
 }
 
 /* ---- Prendre contact manuellement : LinkedIn / Mail / Téléphone ---- */
@@ -981,9 +992,11 @@ $("#btnValiderAjoutContact")?.addEventListener("click", async () => {
 let fileProspection = [];
 let etapeIdx = 0;
 
-$("#btnToutProspecter")?.addEventListener("click", () => {
-  const liste = $("#prListe");
-  liste.innerHTML = mesContacts.map((c) => {
+/* Ouvre la modale de prospection (choix mail/LinkedIn par contact) pour la
+   liste de contacts fournie. */
+function ouvrirModaleProspection(contacts) {
+  if (!contacts.length) { toast("Coche au moins un contact à prospecter."); return; }
+  $("#prListe").innerHTML = contacts.map((c) => {
     const cle = cleContact(c);
     const canalDefaut = c.email ? "mail" : "linkedin";
     return `<div class="prospect-item">
@@ -996,11 +1009,23 @@ $("#btnToutProspecter")?.addEventListener("click", () => {
     </div>`;
   }).join("");
   $("#voileProspecter").hidden = false;
+}
+
+// « Tout prospecter » : coche tout dans le tableau, puis ouvre la modale.
+$("#btnToutProspecter")?.addEventListener("click", () => {
+  document.querySelectorAll("#tableMesContacts .mc-sel").forEach((c) => { c.checked = true; });
+  if ($("#mcToutSel")) $("#mcToutSel").checked = true;
+  ouvrirModaleProspection(mesContacts);
+});
+
+// « Prospecter la sélection » : seulement les contacts cochés.
+$("#btnProspecterSelection")?.addEventListener("click", () => {
+  ouvrirModaleProspection(contactsSelectionnes());
 });
 
 $("#btnFermerProspecter").addEventListener("click", () => { $("#voileProspecter").hidden = true; });
 
-$("#btnLancerProspection").addEventListener("click", () => {
+$("#btnLancerProspection").addEventListener("click", async () => {
   fileProspection = [];
   $$("#prListe .pr-sel").forEach((chk) => {
     if (!chk.checked) return;
@@ -1011,6 +1036,27 @@ $("#btnLancerProspection").addEventListener("click", () => {
     fileProspection.push({ contact: c, canal });
   });
   if (!fileProspection.length) { toast("Sélectionne au moins un contact."); return; }
+
+  // Vérifie les emails AVANT de prospecter (contacts en canal « mail » dont le
+  // statut n'est pas encore connu).
+  const aVerifier = fileProspection.filter(({ contact: c, canal }) =>
+    canal === "mail" && c.email && !["deliverable", "risky", "undeliverable"].includes(c.statut_email));
+  const btn = $("#btnLancerProspection");
+  if (aVerifier.length) {
+    btn.disabled = true;
+    for (let i = 0; i < aVerifier.length; i++) {
+      const c = aVerifier[i].contact;
+      btn.textContent = `Vérification des emails… (${i + 1}/${aVerifier.length})`;
+      try {
+        const r = await post("/api/verifier-email", { email: c.email, cle: cleContact(c) });
+        c.statut_email = r.statut;
+        const idx = mesContacts.findIndex((x) => cleContact(x) === cleContact(c));
+        if (idx >= 0) mesContacts[idx].statut_email = r.statut;
+      } catch (e) { /* on continue même si une vérif échoue */ }
+    }
+    btn.disabled = false; btn.textContent = "Démarrer →";
+  }
+
   $("#voileProspecter").hidden = true;
   etapeIdx = 0;
   afficherEtape();
