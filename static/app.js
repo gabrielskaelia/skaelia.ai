@@ -715,32 +715,38 @@ function badgeNicoka(c) {
     : `<span class="badge ${cls}">${txt}</span>`;
 }
 
-/* Dernier échange Nicoka (type + date), cliquable pour voir le contenu réel. */
+/* Dernier échange Nicoka (type + date), cliquable pour voir le contenu réel.
+   Le lien s'affiche pour tout contact connu de Nicoka (l'id est retrouvé côté
+   serveur via l'email/le nom, même s'il n'a pas été stocké). */
 function echangeNicoka(c) {
   const n = c.nicoka || {};
   const e = n.dernier_echange || {};
-  const cliquable = n.en_base && n.id;
+  const attrs = `data-cle="${echapper(cleContact(c))}"`;
+  if (!n.en_base) return '<span class="txt-faible">—</span>';
   if (!e.type && !e.date) {
-    // Pas d'info en cache mais contact connu de Nicoka → on peut aller chercher
-    return cliquable
-      ? `<button class="lien-echange" data-nicoka-id="${echapper(n.id)}">voir le dernier échange ↗</button>`
-      : '<span class="txt-faible">—</span>';
+    return `<button class="lien-echange" ${attrs}>voir le dernier échange ↗</button>`;
   }
   const d = dateFr(e.date);
   const libelle = (e.type || "contact") + (d && d !== "—" ? " · " + d : "");
-  return cliquable
-    ? `<button class="lien-echange" data-nicoka-id="${echapper(n.id)}" title="Voir le dernier échange">${echapper(libelle)} ↗</button>`
-    : `<span title="Dernière interaction dans Nicoka">${echapper(libelle)}</span>`;
+  return `<button class="lien-echange" ${attrs} title="Voir le dernier échange">${echapper(libelle)} ↗</button>`;
 }
 
 /* Ouvre la modale et charge le contenu réel de la dernière action Nicoka. */
-async function voirEchangeNicoka(id) {
+async function voirEchangeNicoka(cle) {
+  const c = mesContacts.find((x) => cleContact(x) === cle);
+  if (!c) return;
+  const n = c.nicoka || {};
   const corps = $("#echangeCorps");
+  $("#echangeTitre").textContent = "Dernier échange";
   $("#echangeMeta").textContent = "";
   corps.textContent = "Chargement…";
   $("#voileEchange").hidden = false;
+  const params = new URLSearchParams();
+  if (n.id) params.set("id", n.id);
+  if (c.email) params.set("email", c.email);
+  if (c.nom) params.set("nom", c.nom);
   let e = {};
-  try { e = await api("/api/nicoka/echange?id=" + encodeURIComponent(id)); }
+  try { e = await api("/api/nicoka/echange?" + params.toString()); }
   catch (err) { corps.textContent = "Impossible de récupérer l'échange : " + err.message; return; }
   if (!e || (!e.corps && !e.sujet)) {
     corps.textContent = "Aucun contenu d'échange disponible dans Nicoka pour ce contact.";
@@ -815,7 +821,7 @@ function dessinerMesContacts() {
   table.querySelectorAll(".mc-sel").forEach((chk) =>
     chk.addEventListener("change", majInfoSelection));
   table.querySelectorAll(".lien-echange").forEach((b) =>
-    b.addEventListener("click", () => voirEchangeNicoka(b.dataset.nicokaId)));
+    b.addEventListener("click", () => voirEchangeNicoka(b.dataset.cle)));
 }
 
 function majInfoSelection() {

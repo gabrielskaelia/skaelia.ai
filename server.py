@@ -812,13 +812,18 @@ def api_maj_contact():
 
 @app.get("/api/nicoka/echange")
 def api_nicoka_echange():
-    """Contenu réel de la dernière action Nicoka d'un contact (à la demande)."""
+    """Contenu réel de la dernière action Nicoka d'un contact (à la demande).
+    L'id Nicoka est fourni directement, ou retrouvé via l'email/le nom (cache)."""
     try:
         nid = int(request.args.get("id") or 0)
     except ValueError:
         nid = 0
     if not nid:
-        return jsonify({"erreur": "Identifiant Nicoka manquant."}), 400
+        # Résolution par email / nom (contacts ajoutés avant le stockage de l'id)
+        st = nicoka.statut_pour(request.args.get("email", ""), request.args.get("nom", ""))
+        nid = st.get("id") or 0
+    if not nid:
+        return jsonify({"erreur": "Contact introuvable dans Nicoka."}), 404
     return jsonify(nicoka.dernier_echange_detaille(nid) or {})
 
 
