@@ -454,10 +454,12 @@ function dessinerTable() {
     $("#barreContacts").hidden = true;
     liste.hidden = true; table.hidden = false;
     table.innerHTML =
-      "<thead><tr><th>Poste</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
+      "<thead><tr><th>Poste</th><th>Entreprise</th><th>Cabinet</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>
         <td><a href="${echapper(o.url)}" target="_blank" rel="noopener">${echapper(o.titre)}</a></td>
-        <td>${echapper(o.entreprise)}${badgeType(o.type)}${o.via_cabinet ? `<div class="via-cabinet">🏢 offre de cabinet — postée par <strong>${echapper(o.via_cabinet)}</strong></div>` : ""}</td><td>${echapper(o.lieu)}</td>
+        <td>${echapper(o.entreprise)}${badgeType(o.type)}</td>
+        <td>${o.via_cabinet ? `<span class="badge-cabinet">🏢 ${echapper(o.via_cabinet)}</span>` : '<span class="txt-faible">—</span>'}</td>
+        <td>${echapper(o.lieu)}</td>
         <td>${echapper(o.contrat)}</td><td>${echapper(o.salaire)}</td>
         <td>${echapper(o.date)}${o.nouveau ? ' <span class="tag-nouveau">nouveau</span>' : ""}</td><td>${echapper(o.source)}</td></tr>`).join("") +
       "</tbody>";
