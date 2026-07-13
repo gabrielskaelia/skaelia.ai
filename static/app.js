@@ -958,8 +958,88 @@ $("#etSuiv").addEventListener("click", () => { etapeIdx++; afficherEtape(); });
 function montrerVue(nom) {
   $("#vueProspection").hidden = nom !== "prospection";
   $("#vueContacts").hidden = nom !== "contacts";
+  $("#vueComptes").hidden = nom !== "comptes";
   $$(".nav-onglet").forEach((b) => b.classList.toggle("actif", b.dataset.vue === nom));
   if (nom === "contacts") dessinerMesContacts();
+  if (nom === "comptes") chargerComptes();
+}
+
+/* ---------------- Gestion des comptes (administrateur) ---------------- */
+
+let comptes = [];
+
+function dateFr(iso) {
+  if (!iso) return "—";
+  const [a, m, j] = iso.slice(0, 10).split("-");
+  return a ? `${j}/${m}/${a}` : "—";
+}
+
+async function chargerComptes() {
+  try { comptes = await api("/api/admin/utilisateurs"); }
+  catch (e) { toast(e.message); return; }
+  $("#detailCompte").hidden = true;
+  const table = $("#tableComptes");
+  const badgeStatut = (s) => ({
+    actif: '<span class="badge badge-ok">actif</span>',
+    valide: '<span class="badge badge-moyen">validé (mdp à définir)</span>',
+    en_attente: '<span class="badge badge-neutre">en attente</span>',
+  }[s] || `<span class="badge badge-neutre">${echapper(s)}</span>`);
+  table.innerHTML =
+    "<thead><tr><th>Compte</th><th>Nom</th><th>Statut</th><th>Dernière connexion</th><th>Connexions</th></tr></thead><tbody>" +
+    comptes.map((c) => {
+      const total = Object.values(c.connexions || {}).reduce((s, n) => s + n, 0);
+      return `<tr class="ligne-compte" data-email="${echapper(c.email)}">
+        <td>${echapper(c.email)}</td>
+        <td>${echapper(c.nom) || "—"}</td>
+        <td>${badgeStatut(c.statut)}</td>
+        <td>${dateFr(c.derniere_connexion)}</td>
+        <td>${total}</td>
+      </tr>`;
+    }).join("") + "</tbody>";
+  table.querySelectorAll(".ligne-compte").forEach((tr) =>
+    tr.addEventListener("click", () => afficherDetailCompte(tr.dataset.email))
+  );
+}
+
+function afficherDetailCompte(email) {
+  const c = comptes.find((x) => x.email === email);
+  if (!c) return;
+  const jours = Object.entries(c.connexions || {}).sort((a, b) => b[0].localeCompare(a[0]));
+  const lignes = jours.length
+    ? jours.map(([j, n]) => `<div class="cnx-jour"><span>${dateFr(j)}</span><b>${n} connexion${n > 1 ? "s" : ""}</b></div>`).join("")
+    : '<div class="txt-faible">Aucune connexion enregistrée pour l\'instant (le comptage démarre avec cette mise à jour).</div>';
+  const estAdmin = c.email === $("#utilisateurEmail").textContent;
+  $("#detailCompte").innerHTML = `
+    <h2>${echapper(c.email)}</h2>
+    <p class="sous-titre">${echapper(c.nom) || "Nom non renseigné"} ·
+      compte ${c.auth === "google" ? "Google" : "mot de passe"} ·
+      demandé le ${dateFr(c.demande_le)}${c.valide_le ? " · validé le " + dateFr(c.valide_le) : ""}</p>
+    <h2>Connexions par date</h2>
+    <div class="cnx-historique">${lignes}</div>
+    <div class="modale-actions">
+      <button class="btn btn-secondaire" id="btnAdminMdp">Changer le mot de passe</button>
+      ${estAdmin ? "" : '<button class="btn btn-danger" id="btnAdminSupprimer">Supprimer ce compte</button>'}
+    </div>`;
+  $("#detailCompte").hidden = false;
+  $("#detailCompte").scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  $("#btnAdminMdp").addEventListener("click", async () => {
+    const mdp = prompt(`Nouveau mot de passe pour ${c.email} (8 caractères min.) :`);
+    if (mdp === null) return;
+    try {
+      await post("/api/admin/mdp", { email: c.email, mot_de_passe: mdp });
+      toast("Mot de passe changé ✓");
+    } catch (e) { toast(e.message); }
+  });
+
+  $("#btnAdminSupprimer")?.addEventListener("click", async () => {
+    if (!confirm(`Supprimer définitivement le compte ${c.email} ?\n\nSes contacts enregistrés et son historique de recherches seront aussi supprimés.`)) return;
+    try {
+      await post("/api/admin/supprimer", { email: c.email });
+      toast("Compte supprimé ✓");
+      chargerComptes();
+    } catch (e) { toast(e.message); }
+  });
 }
 $$(".nav-onglet").forEach((b) =>
   b.addEventListener("click", () => montrerVue(b.dataset.vue))
@@ -968,7 +1048,10 @@ $$(".nav-onglet").forEach((b) =>
 /* ---------------- démarrage ---------------- */
 
 
-api("/api/moi").then((u) => { $("#utilisateurEmail").textContent = u.email; }).catch(() => {});
+api("/api/moi").then((u) => {
+  $("#utilisateurEmail").textContent = u.email;
+  if (u.admin) $("#navComptes").hidden = false;
+}).catch(() => {});
 chargerReglages().catch(() => {});
 
 // Recherche améliorée : confirmation dès qu'on coche (consomme des crédits).

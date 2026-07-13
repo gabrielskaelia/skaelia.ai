@@ -95,6 +95,7 @@ def api_connexion():
     session.permanent = False  # expire à la fermeture du navigateur
     session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
     session["email"] = (donnees.get("email") or "").strip().lower()
+    auth.enregistrer_connexion(session["email"])
     return jsonify({"ok": True})
 
 
@@ -162,6 +163,7 @@ def api_definir_mdp():
     session.permanent = False  # expire à la fermeture du navigateur
     session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
     session["email"] = email
+    auth.enregistrer_connexion(email)
     return jsonify({"ok": True})
 
 
@@ -246,6 +248,7 @@ def google_callback():
         session.permanent = False  # expire à la fermeture du navigateur
         session["_frais"] = True   # garde-fou : marqueur de connexion fraîche
         session["email"] = email
+        auth.enregistrer_connexion(email)
         return redirect("/")
 
     if statut in ("en_attente", "valide"):
@@ -280,6 +283,7 @@ def api_changer_mdp():
 @app.get("/api/moi")
 def api_moi():
     infos = auth.infos_utilisateur(session["email"]) or {"email": session["email"], "nom": ""}
+    infos["admin"] = session["email"] == auth.ADMIN_EMAIL
     return jsonify(infos)
 
 
@@ -306,6 +310,52 @@ def accueil():
     # conserve la session (le marqueur d'onglet survit au rechargement).
     frais = session.pop("_frais", False)
     return render_template("index.html", v=_version_assets(), frais=frais)
+
+
+# ---------------------------------------------------------------- administration
+
+def _refus_si_pas_admin():
+    if session.get("email") != auth.ADMIN_EMAIL:
+        return jsonify({"erreur": "Réservé à l'administrateur."}), 403
+    return None
+
+
+@app.get("/api/admin/utilisateurs")
+def api_admin_utilisateurs():
+    refus = _refus_si_pas_admin()
+    if refus:
+        return refus
+    return jsonify(auth.lister_utilisateurs())
+
+
+@app.post("/api/admin/mdp")
+def api_admin_mdp():
+    refus = _refus_si_pas_admin()
+    if refus:
+        return refus
+    donnees = request.get_json(force=True)
+    ok, erreur = auth.admin_changer_mdp(donnees.get("email"), donnees.get("mot_de_passe"))
+    if not ok:
+        return jsonify({"erreur": erreur}), 400
+    return jsonify({"ok": True})
+
+
+@app.post("/api/admin/supprimer")
+def api_admin_supprimer():
+    refus = _refus_si_pas_admin()
+    if refus:
+        return refus
+    donnees = request.get_json(force=True)
+    email = (donnees.get("email") or "").strip().lower()
+    ok, erreur = auth.supprimer_utilisateur(email)
+    if not ok:
+        return jsonify({"erreur": erreur}), 400
+    # Nettoyage des données du compte : carnet de contacts + fichiers Excel
+    contacts_store.supprimer_utilisateur(email)
+    import shutil
+    shutil.rmtree(historique.DOSSIER_RESULTATS / historique.slug_user(email),
+                  ignore_errors=True)
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------- réglages

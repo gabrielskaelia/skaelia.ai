@@ -447,3 +447,13 @@ td a:hover { text-decoration: underline; }
 .reg-bouton { margin-left: auto; }
 .reg-zone { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .oc-mdp { background: #6b6b68; }
+
+/* ---- Gestion des comptes (admin) ---- */
+.ligne-compte { cursor: pointer; }
+.ligne-compte:hover td { background: rgba(34, 99, 255, .05); }
+#detailCompte { margin-top: 16px; padding: 20px; }
+.cnx-historique { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.cnx-jour { display: flex; justify-content: space-between; padding: 6px 10px;
+            background: rgba(0,0,0,.03); border-radius: 6px; }
+.btn-danger { background: var(--erreur, #96453d); color: #fff; border: none; }
+.btn-danger:hover { opacity: .9; }

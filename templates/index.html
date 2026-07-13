@@ -23,6 +23,7 @@
       <nav class="nav-principale">
         <button class="nav-onglet actif" data-vue="prospection">Prospection</button>
         <button class="nav-onglet" data-vue="contacts">Mes contacts <span class="pastille" id="compteurContacts" hidden>0</span></button>
+        <button class="nav-onglet" data-vue="comptes" id="navComptes" hidden>Comptes</button>
       </nav>
       <div class="entete-droite">
         <span class="utilisateur-email" id="utilisateurEmail"></span>
@@ -234,6 +235,18 @@
      <div id="contactsVide" class="message-info" hidden>
        Aucun contact enregistré pour l'instant. Lancez une recherche, puis ajoutez des contacts depuis l'onglet Contacts des résultats.
      </div>
+   </section>
+
+   <!-- ============ VUE GESTION DES COMPTES (admin) ============ -->
+   <section id="vueComptes" hidden>
+     <div class="zone-recherche">
+       <h1>Gestion des comptes</h1>
+       <p class="sous-titre">Les personnes qui ont accès à l'outil. Cliquez sur un compte pour voir ses connexions et le gérer.</p>
+     </div>
+     <div class="carte-table">
+       <div class="table-defilante"><table id="tableComptes"></table></div>
+     </div>
+     <div class="carte" id="detailCompte" hidden></div>
    </section>
 
   </main>

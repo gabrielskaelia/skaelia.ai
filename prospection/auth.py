@@ -175,6 +175,71 @@ def changer_mot_de_passe(email, ancien, nouveau):
     return True, ""
 
 
+# ------------------------------------------------------- suivi & administration
+
+def enregistrer_connexion(email):
+    """Comptabilise une connexion réussie (nombre par jour + dernière date)."""
+    email = _normaliser_email(email)
+    with _VERROU:
+        utilisateurs = _charger()
+        u = utilisateurs.get(email)
+        if not u:
+            return
+        jour = datetime.now().strftime("%Y-%m-%d")
+        cnx = u.setdefault("connexions", {})
+        cnx[jour] = cnx.get(jour, 0) + 1
+        u["derniere_connexion"] = datetime.now().isoformat(timespec="seconds")
+        _sauver(utilisateurs)
+
+
+def lister_utilisateurs():
+    """Liste complète des comptes (pour l'espace d'administration)."""
+    comptes = []
+    for email, u in sorted(_charger().items()):
+        comptes.append({
+            "email": email,
+            "nom": u.get("nom", ""),
+            "statut": u.get("statut", ""),
+            "auth": u.get("auth", "mot_de_passe"),
+            "demande_le": u.get("demande_le", ""),
+            "valide_le": u.get("valide_le", ""),
+            "derniere_connexion": u.get("derniere_connexion", ""),
+            "connexions": u.get("connexions", {}),
+        })
+    return comptes
+
+
+def admin_changer_mdp(email, nouveau):
+    """L'administrateur définit directement le mot de passe d'un compte."""
+    if len(nouveau or "") < 8:
+        return False, "Le mot de passe doit contenir au moins 8 caractères."
+    with _VERROU:
+        utilisateurs = _charger()
+        u = utilisateurs.get(_normaliser_email(email))
+        if not u:
+            return False, "Compte introuvable."
+        u["mdp"] = generate_password_hash(nouveau)
+        u["auth"] = "mot_de_passe"
+        if u.get("statut") in ("valide", "en_attente"):
+            u["statut"] = "actif"
+        _sauver(utilisateurs)
+    return True, ""
+
+
+def supprimer_utilisateur(email):
+    """Supprime un compte (le compte administrateur est protégé)."""
+    email = _normaliser_email(email)
+    if email == ADMIN_EMAIL:
+        return False, "Impossible de supprimer le compte administrateur."
+    with _VERROU:
+        utilisateurs = _charger()
+        if email not in utilisateurs:
+            return False, "Compte introuvable."
+        del utilisateurs[email]
+        _sauver(utilisateurs)
+    return True, ""
+
+
 # ------------------------------------------------------- connexion Gmail/SMTP
 
 def lire_smtp_perso(email):

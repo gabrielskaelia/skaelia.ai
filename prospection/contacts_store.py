@@ -121,3 +121,12 @@ def mettre_a_jour(email_utilisateur, cle, champs):
                 _sauver(donnees)
                 return c
     return None
+
+
+def supprimer_utilisateur(email):
+    """Efface le carnet de contacts d'un compte supprimé."""
+    with _VERROU:
+        donnees = _charger()
+        if email in donnees:
+            del donnees[email]
+            _sauver(donnees)
