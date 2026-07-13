@@ -471,8 +471,17 @@ async function chargerReglages() {
   fullenrichConfiguree = !!r.fullenrich_configuree;
   emailPersoConfigure = !!r.email_perso_configure;
   emailPersoAdresse = r.email_perso_adresse || "";
-  // Pré-remplissage de la connexion Gmail personnelle
-  $("#rSmtpUtilisateur").value = r.email_perso_adresse || "";
+  gmailOauth = !!r.gmail_oauth;
+  // Bouton Gmail : connecter, ou déconnecter si déjà relié par Google
+  const btnG = $("#btnConnecterGmail");
+  if (btnG) {
+    btnG.textContent = gmailOauth ? "Déconnecter" : "Connecter son Gmail";
+    btnG.classList.toggle("btn-primaire", !gmailOauth);
+    btnG.classList.toggle("btn-secondaire", gmailOauth);
+  }
+  // Configuration SMTP manuelle : proposée seulement sans connexion Google
+  $("#zoneGmail").hidden = gmailOauth;
+  $("#rSmtpUtilisateur").value = gmailOauth ? "" : (r.email_perso_adresse || "");
   $("#rSmtpHote").value = r.email_perso_hote || "smtp.gmail.com";
   $("#rSmtpPort").value = r.email_perso_port || 587;
   majChipsConnexions();
@@ -502,8 +511,8 @@ $("#btnReglages").addEventListener("click", async () => {
   await chargerReglages();
   $("#mAncien").value = ""; $("#mNouveau").value = ""; $("#msgMdp").hidden = true;
   $("#rSmtpMdp").value = "";
-  // Toutes les sections repliées à l'ouverture
-  ["#zoneLinkedin", "#zoneGmail", "#zoneMdp"].forEach((s) => { $(s).hidden = true; });
+  // Sections repliées à l'ouverture (zoneGmail est gérée par chargerReglages)
+  ["#zoneLinkedin", "#zoneMdp"].forEach((s) => { $(s).hidden = true; });
   $("#voileReglages").hidden = false;
   majBlocConnexions();
 });
@@ -514,9 +523,49 @@ function basculerZone(idZone) {
   const zone = $(idZone);
   zone.hidden = !zone.hidden;
 }
-$("#btnRelierLinkedin")?.addEventListener("click", () => basculerZone("#zoneLinkedin"));
-$("#btnRelierGmail")?.addEventListener("click", () => basculerZone("#zoneGmail"));
 $("#btnMontrerMdp")?.addEventListener("click", () => basculerZone("#zoneMdp"));
+
+/* « Connecter son LinkedIn » : ouvre la page de connexion LinkedIn puis
+   surveille la session via l'extension — le badge passe au vert tout seul. */
+let _surveilLinkedin = null;
+$("#btnConnecterLinkedin")?.addEventListener("click", () => {
+  if (!extensionPresente) {
+    $("#cnxLinkedinAide").textContent =
+      "Il faut d'abord installer l'extension Chrome Skaelia (dossier extension-skaelia, chrome://extensions), puis recharger cette page.";
+    $("#zoneLinkedin").hidden = false;
+    return;
+  }
+  window.open("https://www.linkedin.com/login", "_blank", "noopener");
+  toast("Connecte-toi sur LinkedIn — je surveille…");
+  if (_surveilLinkedin) clearInterval(_surveilLinkedin);
+  let essais = 0;
+  _surveilLinkedin = setInterval(async () => {
+    essais += 1;
+    const r = await verifierSessionLinkedin();
+    if (r.connecte) {
+      clearInterval(_surveilLinkedin); _surveilLinkedin = null;
+      sessionLinkedinOk = true;
+      majChipsConnexions(); majBlocConnexions();
+      toast("LinkedIn connecté ✓");
+    } else if (essais > 40) {           // ~2 minutes puis on arrête
+      clearInterval(_surveilLinkedin); _surveilLinkedin = null;
+    }
+  }, 3000);
+});
+
+/* « Connecter son Gmail » : autorisation Google (OAuth) en un clic.
+   Si déjà connecté, le bouton sert à déconnecter. */
+let gmailOauth = false;
+$("#btnConnecterGmail")?.addEventListener("click", async () => {
+  if (gmailOauth) {
+    if (!confirm("Déconnecter ce compte Gmail ? Les emails ne partiront plus directement.")) return;
+    await post("/api/reglages", { gmail_oauth: false });
+    await chargerReglages(); majBlocConnexions();
+    toast("Gmail déconnecté");
+    return;
+  }
+  window.location.href = "/connexion/gmail";
+});
 
 $("#btnSauverGmail")?.addEventListener("click", async () => {
   if (!$("#rSmtpUtilisateur").value.trim()) { toast("Indique ton adresse Gmail."); return; }
@@ -1052,6 +1101,12 @@ api("/api/moi").then((u) => {
   $("#utilisateurEmail").textContent = u.email;
   if (u.admin) $("#navComptes").hidden = false;
 }).catch(() => {});
+
+// Retour de l'autorisation Google (« Connecter son Gmail »)
+if (new URLSearchParams(location.search).get("gmail") === "ok") {
+  history.replaceState(null, "", "/");
+  toast("Gmail connecté ✓ — tes emails partiront directement.");
+}
 chargerReglages().catch(() => {});
 
 // Recherche améliorée : confirmation dès qu'on coche (consomme des crédits).

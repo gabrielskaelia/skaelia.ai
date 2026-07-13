@@ -312,6 +312,76 @@ def accueil():
     return render_template("index.html", v=_version_assets(), frais=frais)
 
 
+# ------------------------------------------------- connexion Gmail (OAuth)
+
+def _redirect_uri_gmail():
+    return request.host_url.rstrip("/") + "/connexion/gmail/callback"
+
+
+@app.get("/connexion/gmail")
+def gmail_connexion():
+    # Route sous /connexion (publique) : on exige explicitement une session.
+    if not session.get("email"):
+        return redirect(url_for("page_connexion"))
+    cfg = _google_config()
+    if not cfg.get("client_id"):
+        return render_template("message.html", titre="Google non configuré",
+                               message="La connexion Google n'est pas configurée sur le serveur.",
+                               lien_mdp=""), 400
+    etat = _secrets.token_urlsafe(24)
+    session["gmail_oauth_state"] = etat
+    params = {
+        "client_id": cfg["client_id"],
+        "redirect_uri": _redirect_uri_gmail(),
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/gmail.send openid email",
+        "state": etat,
+        "access_type": "offline",   # pour obtenir un refresh_token durable
+        "prompt": "consent",
+    }
+    return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + _urlencode(params))
+
+
+@app.get("/connexion/gmail/callback")
+def gmail_callback():
+    if not session.get("email"):
+        return redirect(url_for("page_connexion"))
+    if request.args.get("state") != session.pop("gmail_oauth_state", None):
+        return render_template("message.html", titre="Connexion refusée",
+                               message="Vérification de sécurité échouée, réessayez.",
+                               lien_mdp=""), 400
+    code = request.args.get("code")
+    if not code:
+        return redirect("/")
+    cfg = _google_config()
+    try:
+        rep = _crequests.post("https://oauth2.googleapis.com/token", data={
+            "code": code,
+            "client_id": cfg["client_id"],
+            "client_secret": cfg["client_secret"],
+            "redirect_uri": _redirect_uri_gmail(),
+            "grant_type": "authorization_code",
+        }, timeout=20)
+        rep.raise_for_status()
+        jetons = rep.json()
+        infos = _crequests.get("https://www.googleapis.com/oauth2/v2/userinfo",
+                               headers={"Authorization": "Bearer " + jetons["access_token"]},
+                               timeout=20).json()
+    except Exception as e:
+        return render_template("message.html", titre="Connexion Gmail impossible",
+                               message=f"Erreur lors de l'échange avec Google : {e}",
+                               lien_mdp=""), 400
+    if not jetons.get("refresh_token"):
+        return render_template("message.html", titre="Connexion Gmail incomplète",
+                               message="Google n'a pas fourni d'autorisation durable — réessayez.",
+                               lien_mdp=""), 400
+    auth.ecrire_gmail_oauth(session["email"], {
+        "adresse": infos.get("email", ""),
+        "refresh_token": jetons["refresh_token"],
+    })
+    return redirect("/?gmail=ok")
+
+
 # ---------------------------------------------------------------- administration
 
 def _refus_si_pas_admin():
@@ -365,15 +435,17 @@ def lire_reglages():
     config = _config()
     cle = config.get("usebouncer_api_key", "")
     smtp_perso = auth.lire_smtp_perso(session["email"])
+    gmail = auth.lire_gmail_oauth(session["email"])
+    smtp_ok = bool(smtp_perso.get("utilisateur") and smtp_perso.get("mot_de_passe"))
     return jsonify({
         "usebouncer_configuree": bool(cle),
         "fullenrich_configuree": bool(config.get("fullenrich_api_key")),
         "exclusions_cabinets": config.get("exclusions_cabinets", []),
         "smtp_configure": mailer.smtp_configure(),
-        # Connexion Gmail/SMTP propre au compte connecté (envoi direct)
-        "email_perso_configure": bool(smtp_perso.get("utilisateur")
-                                      and smtp_perso.get("mot_de_passe")),
-        "email_perso_adresse": smtp_perso.get("utilisateur", ""),
+        # Connexion d'envoi propre au compte : Gmail OAuth d'abord, sinon SMTP
+        "email_perso_configure": bool(gmail.get("refresh_token")) or smtp_ok,
+        "email_perso_adresse": gmail.get("adresse") or smtp_perso.get("utilisateur", ""),
+        "gmail_oauth": bool(gmail.get("refresh_token")),
         "email_perso_hote": smtp_perso.get("hote", ""),
         "email_perso_port": smtp_perso.get("port", 587),
     })
@@ -405,6 +477,8 @@ def ecrire_reglages():
     # Connexion Gmail/SMTP personnelle (stockée sur le compte, pas en global)
     if "smtp_perso" in donnees:
         auth.ecrire_smtp_perso(session["email"], donnees["smtp_perso"] or {})
+    if "gmail_oauth" in donnees and not donnees["gmail_oauth"]:
+        auth.ecrire_gmail_oauth(session["email"], {})   # déconnexion Gmail
     return jsonify({"ok": True})
 
 
@@ -419,10 +493,14 @@ def api_envoyer_email():
         return jsonify({"erreur": "Destinataire invalide."}), 400
     if not corps.strip():
         return jsonify({"erreur": "Le message est vide."}), 400
-    conf = auth.lire_smtp_perso(session["email"])
-    if not (conf.get("utilisateur") and conf.get("mot_de_passe")):
-        return jsonify({"erreur": "Connexion Gmail non configurée (Réglages)."}), 400
-    ok, erreur = mailer.envoyer_pour(conf, destinataire, sujet, corps)
+    gmail = auth.lire_gmail_oauth(session["email"])
+    if gmail.get("refresh_token"):
+        ok, erreur = mailer.envoyer_gmail(gmail, destinataire, sujet, corps)
+    else:
+        conf = auth.lire_smtp_perso(session["email"])
+        if not (conf.get("utilisateur") and conf.get("mot_de_passe")):
+            return jsonify({"erreur": "Connexion Gmail non configurée (Réglages)."}), 400
+        ok, erreur = mailer.envoyer_pour(conf, destinataire, sujet, corps)
     if not ok:
         return jsonify({"erreur": erreur}), 502
     return jsonify({"ok": True})

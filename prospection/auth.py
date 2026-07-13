@@ -272,6 +272,32 @@ def ecrire_smtp_perso(email, conf):
     return True
 
 
+def lire_gmail_oauth(email):
+    """Connexion Gmail (OAuth) du compte : {adresse, refresh_token} ou {}."""
+    u = _charger().get(_normaliser_email(email))
+    return (u or {}).get("gmail_oauth") or {}
+
+
+def ecrire_gmail_oauth(email, conf):
+    """Enregistre (ou retire si `conf` est vide) la connexion Gmail OAuth."""
+    email = _normaliser_email(email)
+    with _VERROU:
+        utilisateurs = _charger()
+        u = utilisateurs.get(email)
+        if not u:
+            return False
+        if not conf:
+            u.pop("gmail_oauth", None)
+        else:
+            u["gmail_oauth"] = {
+                "adresse": (conf.get("adresse") or "").strip().lower(),
+                "refresh_token": conf.get("refresh_token") or "",
+                "relie_le": datetime.now().isoformat(timespec="seconds"),
+            }
+        _sauver(utilisateurs)
+    return True
+
+
 def infos_utilisateur(email):
     u = _charger().get(_normaliser_email(email))
     if not u:

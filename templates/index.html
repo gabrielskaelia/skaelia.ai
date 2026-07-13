@@ -302,13 +302,10 @@
           <span class="oc-icone oc-linkedin">in</span>
           <strong>LinkedIn</strong>
           <span id="cnxLinkedinEtat" class="badge badge-neutre">…</span>
-          <button class="btn btn-secondaire btn-petit reg-bouton" id="btnRelierLinkedin">Relier son LinkedIn</button>
+          <button class="btn btn-primaire btn-petit reg-bouton" id="btnConnecterLinkedin">Connecter son LinkedIn</button>
         </div>
         <div class="reg-zone" id="zoneLinkedin" hidden>
           <small class="txt-faible" id="cnxLinkedinAide"></small>
-          <div class="oc-actions">
-            <a class="btn btn-secondaire btn-petit" href="https://www.linkedin.com/login" target="_blank" rel="noopener">Ouvrir LinkedIn</a>
-          </div>
         </div>
       </div>
 
@@ -317,20 +314,20 @@
           <span class="oc-icone oc-mail">@</span>
           <strong>Gmail</strong>
           <span id="cnxGmailEtat" class="badge badge-neutre">…</span>
-          <button class="btn btn-secondaire btn-petit reg-bouton" id="btnRelierGmail">Relier son Gmail</button>
+          <button class="btn btn-primaire btn-petit reg-bouton" id="btnConnecterGmail">Connecter son Gmail</button>
         </div>
         <div class="reg-zone" id="zoneGmail" hidden>
-          <label class="champ">
-            <span class="champ-libelle">Adresse Gmail</span>
-            <input type="email" id="rSmtpUtilisateur" placeholder="ex. : gabriel.praud@skaelia.com">
-          </label>
-          <label class="champ">
-            <span class="champ-libelle">Mot de passe d'application
-              (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">le créer ici</a>)</span>
-            <input type="password" id="rSmtpMdp" placeholder="Laisser vide pour ne pas changer">
-          </label>
-          <details class="cnx-avance">
-            <summary class="txt-faible">Réglages avancés</summary>
+          <details class="cnx-avance" id="smtpAvance">
+            <summary class="txt-faible">Configuration manuelle (avancé)</summary>
+            <label class="champ">
+              <span class="champ-libelle">Adresse email d'envoi</span>
+              <input type="email" id="rSmtpUtilisateur" placeholder="ex. : gabriel.praud@skaelia.com">
+            </label>
+            <label class="champ">
+              <span class="champ-libelle">Mot de passe d'application
+                (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">le créer ici</a>)</span>
+              <input type="password" id="rSmtpMdp" placeholder="Laisser vide pour ne pas changer">
+            </label>
             <label class="champ">
               <span class="champ-libelle">Serveur SMTP</span>
               <input type="text" id="rSmtpHote" placeholder="smtp.gmail.com" value="smtp.gmail.com">
@@ -339,10 +336,10 @@
               <span class="champ-libelle">Port</span>
               <input type="number" id="rSmtpPort" value="587">
             </label>
+            <div class="oc-actions">
+              <button class="btn btn-primaire btn-petit" id="btnSauverGmail">Enregistrer</button>
+            </div>
           </details>
-          <div class="oc-actions">
-            <button class="btn btn-primaire btn-petit" id="btnSauverGmail">Enregistrer</button>
-          </div>
         </div>
       </div>
 

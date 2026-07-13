@@ -68,6 +68,57 @@ def envoyer_pour(conf_perso, destinataire, sujet, corps_texte):
     return _envoyer_via(conf_perso or {}, destinataire, sujet, corps_texte, "plain")
 
 
+# --------------------------------------------------- envoi via l'API Gmail
+
+def _config_google():
+    try:
+        config = json.loads(FICHIER_CONFIG.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return config.get("google") or {}
+
+
+def envoyer_gmail(conf_oauth, destinataire, sujet, corps_texte):
+    """Envoie un email TEXTE via l'API Gmail (compte relié par OAuth).
+    `conf_oauth` = {adresse, refresh_token}. Retourne (ok, erreur)."""
+    import base64
+    from curl_cffi import requests as crequests
+
+    google = _config_google()
+    if not (google.get("client_id") and google.get("client_secret")):
+        return False, "Connexion Google non configurée sur le serveur."
+    if not conf_oauth.get("refresh_token"):
+        return False, "Compte Gmail non relié."
+    try:
+        rep = crequests.post("https://oauth2.googleapis.com/token", data={
+            "client_id": google["client_id"],
+            "client_secret": google["client_secret"],
+            "refresh_token": conf_oauth["refresh_token"],
+            "grant_type": "refresh_token",
+        }, timeout=20)
+        if rep.status_code != 200:
+            return False, ("Autorisation Gmail expirée ou révoquée — recliquez sur "
+                           "« Connecter son Gmail » dans les Réglages.")
+        jeton = rep.json()["access_token"]
+
+        message = MIMEText(corps_texte, "plain", "utf-8")
+        message["Subject"] = sujet
+        message["From"] = conf_oauth.get("adresse", "")
+        message["To"] = destinataire
+        brut = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        envoi = crequests.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"Authorization": "Bearer " + jeton,
+                     "Content-Type": "application/json"},
+            json={"raw": brut}, timeout=20)
+        if envoi.status_code >= 300:
+            return False, f"Gmail a refusé l'envoi ({envoi.status_code})."
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
 def _gabarit(titre, corps, lien, libelle_bouton):
     return f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;
