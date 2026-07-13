@@ -700,6 +700,21 @@ $("#btnToutSupprimer")?.addEventListener("click", () => {
   dessinerTable();
 });
 
+/* Statut Nicoka d'un contact : déjà en base ? date du dernier contact ?
+   Le lien ouvre la fiche/dernier échange dans Nicoka (contenu non exposé par
+   l'API — on renvoie donc vers Nicoka). */
+function badgeNicoka(c) {
+  const n = c.nicoka || {};
+  if (!n.verifie) return '<span class="txt-faible" title="Base Nicoka non synchronisée">—</span>';
+  if (!n.en_base) return '<span class="badge badge-ok">nouveau</span>';
+  const date = dateFr(n.dernier_contact);
+  const cls = n.recent ? "badge-moyen" : "badge-neutre";
+  const txt = "déjà contacté" + (date && date !== "—" ? " · " + date : "");
+  return n.url_nicoka
+    ? `<a class="badge ${cls}" href="${echapper(n.url_nicoka)}" target="_blank" rel="noopener" title="Ouvrir le dernier échange dans Nicoka">${txt} ↗</a>`
+    : `<span class="badge ${cls}">${txt}</span>`;
+}
+
 function dessinerMesContacts() {
   const table = $("#tableMesContacts");
   const vide = $("#contactsVide");
@@ -715,7 +730,7 @@ function dessinerMesContacts() {
   actions.hidden = false;
   vide.hidden = true;
   table.innerHTML =
-    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>" +
+    "<thead><tr><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>" +
     mesContacts.map((c) => {
       const cle = cleContact(c);
       const offres = c.offres || [];
@@ -731,6 +746,7 @@ function dessinerMesContacts() {
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
         <td>${echapper(c.entreprise)}</td>
+        <td>${badgeNicoka(c)}</td>
         <td class="cellule-offre">${lienOffre}</td>
         <td>${lienLinkedin}</td>
         <td>${cellEmail}</td>

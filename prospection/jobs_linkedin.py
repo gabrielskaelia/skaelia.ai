@@ -24,19 +24,13 @@ def _extr(motif, texte):
 
 
 def _date_relative(iso):
-    """'2025-06-23' -> 'il y a X jours'."""
+    """'2025-06-23' -> date absolue '23/06/2025' (stable dans le temps)."""
     if not iso:
         return ""
     try:
-        d = datetime.strptime(iso[:10], "%Y-%m-%d")
+        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
     except ValueError:
         return ""
-    j = (datetime.now() - d).days
-    if j <= 0:
-        return "aujourd'hui"
-    if j == 1:
-        return "il y a 1 jour"
-    return f"il y a {j} jours"
 
 
 def rechercher_offres(poste, lieu="", pages=2, delai=2.0):

@@ -697,6 +697,8 @@ def api_ajouter_contacts():
                 "en_base": st.get("en_base", False),
                 "recent": st.get("recent", False),
                 "jours": st.get("jours_depuis_action"),
+                "dernier_contact": st.get("last_action_on", ""),
+                "url_nicoka": st.get("url_nicoka", ""),
             }
             if st.get("recent"):
                 recents.append({"nom": c.get("nom", ""),
@@ -757,7 +759,9 @@ def api_verifier_nicoka_tous():
     def calcul(c):
         st = nicoka.statut_pour(c.get("email", ""), c.get("nom", ""), cache)
         return {"verifie": True, "en_base": st.get("en_base", False),
-                "recent": st.get("recent", False), "jours": st.get("jours_depuis_action")}
+                "recent": st.get("recent", False), "jours": st.get("jours_depuis_action"),
+                "dernier_contact": st.get("last_action_on", ""),
+                "url_nicoka": st.get("url_nicoka", "")}
 
     liste = contacts_store.maj_nicoka_tous(session["email"], calcul)
     deja = sum(1 for c in liste if (c.get("nicoka") or {}).get("recent"))

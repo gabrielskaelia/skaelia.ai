@@ -38,6 +38,35 @@ _VERROU_HISTORIQUE = threading.Lock()
 
 CONTRATS_CONNUS = ["CDI", "CDD", "Intérim", "Alternance", "Stage", "Indépendant"]
 
+
+def _date_absolue(texte, maintenant=None):
+    """Convertit une date de publication RELATIVE (« il y a 3 jours »,
+    « aujourd'hui », « hier »…) en date ABSOLUE « JJ/MM/AAAA », figée au moment
+    de la collecte. Ainsi « il y a 10 h » reste juste 3 jours plus tard.
+    Les dates déjà absolues (JJ/MM/AAAA) sont conservées telles quelles."""
+    from datetime import timedelta
+    t = (texte or "").strip().lower()
+    if not t:
+        return ""
+    maintenant = maintenant or datetime.now()
+    # Déjà au format absolu ?
+    if re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", t):
+        return texte.strip()
+    if "aujourd" in t:
+        return maintenant.strftime("%d/%m/%Y")
+    if t == "hier":
+        return (maintenant - timedelta(days=1)).strftime("%d/%m/%Y")
+    m = re.search(r"il y a\s+(\d+)\s*(minute|heure|jour|semaine|mois|an)", t)
+    if m:
+        n = int(m.group(1)); unite = m.group(2)
+        delta = {"minute": timedelta(0), "heure": timedelta(0),
+                 "jour": timedelta(days=n), "semaine": timedelta(weeks=n),
+                 "mois": timedelta(days=30 * n), "an": timedelta(days=365 * n)}[unite]
+        return (maintenant - delta).strftime("%d/%m/%Y")
+    if re.search(r"il y a\s+(une|un)\s*(heure|minute)", t) or "instant" in t:
+        return maintenant.strftime("%d/%m/%Y")
+    return texte.strip()  # format inconnu : on garde tel quel
+
 # Recherche améliorée (FullEnrich, payante) : nombre max d'entreprises réellement
 # interrogées via FullEnrich par recherche, pour borner le coût (~0,25 crédit par
 # décideur). Au-delà, on repasse au gratuit (DuckDuckGo).
@@ -195,6 +224,12 @@ def executer(params, log=print):
                 offres += trouvees
             except Exception as e:
                 log(f"→ {noms[s]} indisponible : {e}")
+
+    # Dates de publication : on fige le relatif en date absolue AU MOMENT de la
+    # collecte, pour que l'historique reste cohérent dans le temps.
+    maintenant = datetime.now()
+    for o in offres:
+        o["date"] = _date_absolue(o.get("date", ""), maintenant)
 
     # --- Filtres -----------------------------------------------------------
     avant = len(offres)
