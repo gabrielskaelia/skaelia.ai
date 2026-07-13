@@ -371,6 +371,46 @@
     </div>
   </div>
 
+  <!-- ===== Assistant de bienvenue (première connexion) ===== -->
+  <div class="voile" id="voileOnboarding" hidden>
+    <div class="modale">
+      <h2>Bienvenue sur Skaelia&nbsp;!</h2>
+      <p class="sous-titre">Relie tes outils pour contacter tes prospects en un clic.
+        Tu pourras toujours le faire plus tard dans les Réglages.</p>
+
+      <div class="ob-progress"><span id="obPoint1" class="ob-point actif"></span><span id="obPoint2" class="ob-point"></span></div>
+
+      <!-- Étape 1 : Gmail -->
+      <div id="obGmail" class="ob-etape">
+        <div class="reg-ligne">
+          <span class="oc-icone oc-mail">@</span>
+          <strong>Étape 1 — Connecter Gmail</strong>
+          <span id="obGmailEtat" class="badge badge-neutre"></span>
+        </div>
+        <p class="txt-faible">Envoie tes emails de prospection directement depuis ton adresse, au clic.</p>
+        <div class="modale-actions">
+          <button class="btn btn-primaire" id="obConnecterGmail">Connecter son Gmail</button>
+          <button class="btn btn-secondaire" id="obSauterGmail">Sauter cette étape</button>
+        </div>
+      </div>
+
+      <!-- Étape 2 : LinkedIn -->
+      <div id="obLinkedin" class="ob-etape" hidden>
+        <div class="reg-ligne">
+          <span class="oc-icone oc-linkedin">in</span>
+          <strong>Étape 2 — Connecter LinkedIn</strong>
+          <span id="obLinkedinEtat" class="badge badge-neutre"></span>
+        </div>
+        <p class="txt-faible">Envoie tes messages LinkedIn depuis l'outil (nécessite l'extension Chrome Skaelia).</p>
+        <small class="txt-faible" id="obLinkedinAide"></small>
+        <div class="modale-actions">
+          <button class="btn btn-primaire" id="obConnecterLinkedin">Connecter son LinkedIn</button>
+          <button class="btn btn-secondaire" id="obTerminer">Terminer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>window.__frais = {{ 'true' if frais else 'false' }};</script>
   <script src="/static/app.js?v={{ v }}"></script>
 </body>

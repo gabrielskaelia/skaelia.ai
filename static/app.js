@@ -1094,20 +1094,97 @@ $$(".nav-onglet").forEach((b) =>
   b.addEventListener("click", () => montrerVue(b.dataset.vue))
 );
 
+/* ---------------- Assistant de bienvenue (première connexion) ---------------- */
+
+let _surveilObLinkedin = null;
+
+function ouvrirOnboarding(etape) {
+  detecterExtension();
+  majEtapeOnboarding(etape);
+  $("#voileOnboarding").hidden = false;
+}
+
+function majEtapeOnboarding(etape) {
+  const surGmail = etape === "gmail";
+  $("#obGmail").hidden = !surGmail;
+  $("#obLinkedin").hidden = surGmail;
+  $("#obPoint1").classList.toggle("actif", surGmail);
+  $("#obPoint2").classList.toggle("actif", !surGmail);
+  if (surGmail) {
+    const badge = $("#obGmailEtat");
+    badge.textContent = gmailOauth ? "connecté ✓" : "";
+    badge.className = "badge " + (gmailOauth ? "badge-ok" : "badge-neutre");
+  } else {
+    majEtatObLinkedin();
+  }
+}
+
+async function majEtatObLinkedin() {
+  const el = $("#obLinkedinEtat");
+  if (!extensionPresente) {
+    el.textContent = "extension non installée"; el.className = "badge badge-erreur";
+    $("#obLinkedinAide").textContent =
+      "L'extension Chrome Skaelia n'est pas détectée — tu peux terminer et l'installer plus tard.";
+    return;
+  }
+  $("#obLinkedinAide").textContent = "";
+  const r = await verifierSessionLinkedin();
+  el.textContent = r.connecte ? "connecté ✓" : "non connecté";
+  el.className = "badge " + (r.connecte ? "badge-ok" : "badge-neutre");
+}
+
+async function terminerOnboarding() {
+  if (_surveilObLinkedin) { clearInterval(_surveilObLinkedin); _surveilObLinkedin = null; }
+  try { await post("/api/onboarding-vu", {}); } catch (e) { /* on ferme quand même */ }
+  $("#voileOnboarding").hidden = true;
+}
+
+$("#obConnecterGmail")?.addEventListener("click", () => { window.location.href = "/connexion/gmail"; });
+$("#obSauterGmail")?.addEventListener("click", () => majEtapeOnboarding("linkedin"));
+$("#obTerminer")?.addEventListener("click", terminerOnboarding);
+
+$("#obConnecterLinkedin")?.addEventListener("click", () => {
+  if (!extensionPresente) { majEtatObLinkedin(); return; }
+  window.open("https://www.linkedin.com/login", "_blank", "noopener");
+  toast("Connecte-toi sur LinkedIn — je surveille…");
+  if (_surveilObLinkedin) clearInterval(_surveilObLinkedin);
+  let essais = 0;
+  _surveilObLinkedin = setInterval(async () => {
+    essais += 1;
+    const r = await verifierSessionLinkedin();
+    if (r.connecte) {
+      clearInterval(_surveilObLinkedin); _surveilObLinkedin = null;
+      sessionLinkedinOk = true; majChipsConnexions();
+      $("#obLinkedinEtat").textContent = "connecté ✓";
+      $("#obLinkedinEtat").className = "badge badge-ok";
+      toast("LinkedIn connecté ✓");
+      setTimeout(terminerOnboarding, 1000);
+    } else if (essais > 40) {           // ~2 minutes puis on arrête la surveillance
+      clearInterval(_surveilObLinkedin); _surveilObLinkedin = null;
+    }
+  }, 3000);
+});
+
 /* ---------------- démarrage ---------------- */
 
-
-api("/api/moi").then((u) => {
-  $("#utilisateurEmail").textContent = u.email;
+(async function demarrage() {
+  const retourGmail = new URLSearchParams(location.search).get("gmail") === "ok";
+  if (retourGmail) {
+    history.replaceState(null, "", "/");
+    toast("Gmail connecté ✓ — tes emails partiront directement.");
+  }
+  let u = {};
+  try { u = await api("/api/moi"); } catch (e) { /* non connecté : géré par api() */ }
+  if (u.email) $("#utilisateurEmail").textContent = u.email;
   if (u.admin) $("#navComptes").hidden = false;
-}).catch(() => {});
+  try { await chargerReglages(); } catch (e) { /* réglages indisponibles */ }
 
-// Retour de l'autorisation Google (« Connecter son Gmail »)
-if (new URLSearchParams(location.search).get("gmail") === "ok") {
-  history.replaceState(null, "", "/");
-  toast("Gmail connecté ✓ — tes emails partiront directement.");
-}
-chargerReglages().catch(() => {});
+  // Assistant de bienvenue à la première connexion. Si Gmail vient d'être relié
+  // (retour de Google) ou l'est déjà, on démarre directement sur l'étape LinkedIn.
+  if (u.onboarding_a_faire) {
+    ouvrirOnboarding(gmailOauth || retourGmail ? "linkedin" : "gmail");
+  }
+})();
 
 // Recherche améliorée : confirmation dès qu'on coche (consomme des crédits).
 $("#fRechercheAmelioree")?.addEventListener("change", (e) => {

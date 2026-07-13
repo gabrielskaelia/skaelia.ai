@@ -284,7 +284,15 @@ def api_changer_mdp():
 def api_moi():
     infos = auth.infos_utilisateur(session["email"]) or {"email": session["email"], "nom": ""}
     infos["admin"] = session["email"] == auth.ADMIN_EMAIL
+    infos["onboarding_a_faire"] = auth.onboarding_a_faire(session["email"])
     return jsonify(infos)
+
+
+@app.post("/api/onboarding-vu")
+def api_onboarding_vu():
+    """L'assistant de bienvenue a été complété ou passé."""
+    auth.marquer_onboarding_vu(session["email"])
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------- pages

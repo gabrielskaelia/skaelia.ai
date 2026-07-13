@@ -298,6 +298,23 @@ def ecrire_gmail_oauth(email, conf):
     return True
 
 
+def onboarding_a_faire(email):
+    """True si le compte n'a pas encore vu l'assistant de bienvenue
+    (connexion Gmail + LinkedIn à la première connexion)."""
+    u = _charger().get(_normaliser_email(email))
+    return bool(u) and not u.get("onboarding_vu")
+
+
+def marquer_onboarding_vu(email):
+    """L'assistant de bienvenue a été complété ou passé : ne plus l'afficher."""
+    with _VERROU:
+        utilisateurs = _charger()
+        u = utilisateurs.get(_normaliser_email(email))
+        if u:
+            u["onboarding_vu"] = True
+            _sauver(utilisateurs)
+
+
 def infos_utilisateur(email):
     u = _charger().get(_normaliser_email(email))
     if not u:
