@@ -177,25 +177,27 @@ def _nom_client_propre(nom):
     return nom
 
 
-def stade_client_signe():
-    """Numéro de l'étape de vente « Client signé / convention signée »
-    (configurable dans config.json → nicoka.stade_client_signe ; 5 par défaut)."""
-    return int(_config().get("stade_client_signe", 5))
+def type_compte_client():
+    """Valeur du champ `type` d'un compte Nicoka correspondant au statut
+    « Client » (configurable dans config.json → nicoka.type_client ; 1 par défaut)."""
+    return int(_config().get("type_client", 1))
 
 
 def synchroniser_references(log=lambda m: None):
-    """Construit la liste des CLIENTS SIGNÉS et des « références » (client + rôle)
-    pour enrichir les messages de prospection.
+    """Construit la liste des CLIENTS et des « références » (client + rôle) pour
+    enrichir les messages de prospection.
 
-    Source des clients : les OPPORTUNITÉS Nicoka dont l'étape de vente vaut
-    « Client signé » (stage = stade_client_signe()). Le compte de l'opportunité
-    (customerid) se résout via le endpoint `customers` (PAS `companies`).
-    Retourne le nombre de références."""
+    Source des clients : les COMPTES (endpoint `customers`) marqués « Client »
+    (champ type = type_compte_client()). Le compte des missions se résout aussi
+    via `customers` (et non `companies`). Retourne le nombre de références."""
     if not est_configure():
         return 0
 
-    # 1. Comptes (customers) : identifiant -> nom
+    # 1. Comptes (customers) : id -> nom, et repérage des comptes « Client »
+    type_client = type_compte_client()
     noms = {}
+    clients = set()       # noms des comptes au statut « Client »
+    clients_ids = set()   # leurs identifiants (pour rattacher les missions)
     offset = 0
     while True:
         d = _get("customers", {"limit": 200, "offset": offset})
@@ -203,33 +205,16 @@ def synchroniser_references(log=lambda m: None):
         if not lot:
             break
         for c in lot:
-            noms[c.get("id")] = (c.get("label") or c.get("company_name") or "").strip()
+            nom = (c.get("label") or c.get("company_name") or "").strip()
+            noms[c.get("id")] = nom
+            if c.get("type") == type_client and nom:
+                clients.add(nom)
+                clients_ids.add(c.get("id"))
         if len(lot) < 200:
             break
         offset += 200
 
-    # 2. Opportunités au stade « Client signé » -> clients signés
-    stade = stade_client_signe()
-    clients = set()       # noms des comptes clients signés
-    clients_ids = set()   # leurs identifiants (pour rattacher les missions)
-    offset = 0
-    while True:
-        d = _get("opportunities", {"limit": 200, "offset": offset})
-        lot = d.get("data", [])
-        if not lot:
-            break
-        for o in lot:
-            if o.get("stage") == stade:
-                cid = o.get("customerid")
-                nom = (noms.get(cid) or "").strip()
-                if nom:
-                    clients.add(nom)
-                    clients_ids.add(cid)
-        if len(lot) < 200:
-            break
-        offset += 200
-
-    # 3. Références (client + rôle) : missions des clients signés uniquement
+    # 2. Références (client + rôle) : missions des comptes clients uniquement
     refs = []
     offset = 0
     while True:
@@ -254,7 +239,7 @@ def synchroniser_references(log=lambda m: None):
         {"synced_at": datetime.now().isoformat(timespec="seconds"),
          "references": refs, "clients": sorted(clients)},
         ensure_ascii=False), encoding="utf-8")
-    log(f"{len(clients)} clients signés (stade {stade}) et {len(refs)} références synchronisés")
+    log(f"{len(clients)} comptes « Client » et {len(refs)} références synchronisés")
     return len(refs)
 
 
