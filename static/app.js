@@ -24,6 +24,7 @@ const LIEN_EXTENSION = "https://chromewebstore.google.com/detail/dgfooifdbhgjddi
 let sondage = null;
 let resultats = null;
 let tableActive = "contacts";
+let dernierCabinet = false;   // dernière recherche = « Offre de cabinet » ?
 let mesContacts = [];
 let clesSauvegardees = new Set();
 let _sondageEnrich = null;
@@ -255,6 +256,7 @@ async function lancerRecherche() {
     $("#fNbEntreprises")?.focus(); return;
   }
   const opts = optionsRecherche();
+  dernierCabinet = !!opts.inclure_cabinets;
   if (!opts.sources.length) { toast("Choisis au moins une source (HelloWork/LinkedIn)."); return; }
   if (!opts.types_entreprise.length) { toast("Coche au moins un type : Prospects ou Clients."); return; }
   try {
@@ -326,7 +328,8 @@ async function afficherResultats(statut) {
     <div class="stat"><span class="stat-nombre">${s.nb_entreprises}</span><span class="stat-libelle">entreprises</span></div>
     <div class="stat"><span class="stat-nombre">${s.nb_offres}</span><span class="stat-libelle">offres</span></div>
     <div class="stat"><span class="stat-nombre">${s.nb_nouvelles}</span><span class="stat-libelle">nouvelles offres</span></div>`;
-  tableActive = "contacts";
+  // Recherche « Offre de cabinet » : on ouvre d'abord sur les offres (le but).
+  tableActive = dernierCabinet ? "offres" : "contacts";
   $$(".onglet").forEach((b) => b.classList.toggle("actif", b.dataset.table === tableActive));
   dessinerTable();
   $("#vueResultats").hidden = false;
