@@ -268,6 +268,9 @@ async function lancerRecherche() {
   $("#suiviTitre").textContent = `Recherche : ${motsCles || secteur || "Offres de nos clients"}${lieu ? " — " + lieu : ""}`;
   $("#blocSuivi").hidden = false;
   $("#journal").innerHTML = "";
+  $("#suiviContacts").hidden = true;
+  $("#suiviContactsListe").innerHTML = "";
+  $("#suiviContactsNb").textContent = "0";
   $("#suiviSpinner").style.display = "";
   if (sondage) clearInterval(sondage);
   sondage = setInterval(interrogerStatut, 1500);
@@ -284,6 +287,24 @@ async function interrogerStatut() {
     `<div class="journal-ligne"><span class="journal-heure">${l.heure}</span>
      <span>${echapper(l.texte)}</span></div>`).join("");
   journal.scrollTop = journal.scrollHeight;
+
+  // Contacts trouvés affichés progressivement, un par un, pendant la recherche.
+  const partiels = statut.contacts_partiels || [];
+  const blocC = $("#suiviContacts");
+  if (blocC) {
+    if (partiels.length) {
+      blocC.hidden = false;
+      $("#suiviContactsNb").textContent = partiels.length;
+      $("#suiviContactsListe").innerHTML = partiels.map((c) =>
+        `<div class="suivi-contact-ligne">
+           <span class="contact-avatar-mini">${echapper(initiales(c.nom))}</span>
+           <span class="suivi-contact-nom">${echapper(c.nom)}</span>
+           <span class="suivi-contact-ent">${echapper(c.entreprise || "")}</span>
+         </div>`).join("");
+    } else {
+      blocC.hidden = true;
+    }
+  }
 
   if (statut.etat === "termine" || statut.etat === "erreur") {
     clearInterval(sondage); sondage = null;

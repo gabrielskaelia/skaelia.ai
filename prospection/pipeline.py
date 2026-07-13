@@ -178,9 +178,12 @@ def _marquer_nouveautes(offres, signature):
     return 0 if premiere_fois else nb_nouvelles
 
 
-def executer(params, log=print):
+def executer(params, log=print, sur_contacts=None):
     """Exécute le pipeline complet et retourne
-    {offres, entreprises, contacts, fichier, nb_nouvelles}."""
+    {offres, entreprises, contacts, fichier, nb_nouvelles}.
+
+    `sur_contacts(liste)` — appelé au fil de l'eau à chaque contact trouvé,
+    pour un affichage progressif côté interface."""
     p = {**DEFAUTS, **{k: v for k, v in params.items() if v is not None}}
     poste = (p.get("poste") or "").strip()
     mode_clients = bool(p.get("mode_clients"))
@@ -366,6 +369,11 @@ def executer(params, log=print):
         try:
             for f in as_completed(futurs):
                 contacts += f.result()
+                if sur_contacts:  # affichage progressif « un par un » côté UI
+                    try:
+                        sur_contacts(list(contacts[:cible_nb] if cible_nb else contacts))
+                    except Exception:
+                        pass
                 if cible_nb and len(contacts) >= cible_nb:
                     break
         finally:
