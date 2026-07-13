@@ -17,6 +17,10 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
+// Lien d'installation de l'extension sur le Chrome Web Store (ID stable de
+// l'extension). Fonctionne une fois l'extension validée/publiée par Google.
+const LIEN_EXTENSION = "https://chromewebstore.google.com/detail/dgfooifdbhgjddidgdpcjknjbmpmccco";
+
 let sondage = null;
 let resultats = null;
 let tableActive = "contacts";
@@ -492,11 +496,16 @@ async function majBlocConnexions() {
     `<span class="badge ${ok ? "badge-ok" : "badge-erreur"}">${ok ? texteOk : texteKo}</span>`;
   $("#cnxGmailEtat").outerHTML = `<span id="cnxGmailEtat">${
     badge(emailPersoConfigure, "connecté ✓" + (emailPersoAdresse ? " — " + echapper(emailPersoAdresse) : ""), "non connecté")}</span>`;
+  const btnInstall = $("#btnInstallerExtension");
   if (!extensionPresente) {
     $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${badge(false, "", "extension non installée")}</span>`;
-    $("#cnxLinkedinAide").textContent = "Installez l'extension Chrome Skaelia (dossier extension-skaelia) puis rechargez la page.";
+    $("#cnxLinkedinAide").textContent = "Installez l'extension Chrome Skaelia en un clic, puis rechargez la page.";
+    if (btnInstall) btnInstall.hidden = false;
+    if ($("#btnConnecterLinkedin")) $("#btnConnecterLinkedin").hidden = true;
+    if ($("#btnChangerLinkedin")) $("#btnChangerLinkedin").hidden = true;
     return;
   }
+  if (btnInstall) btnInstall.hidden = true;
   const r = await verifierSessionLinkedin();
   const btnConn = $("#btnConnecterLinkedin"), btnChg = $("#btnChangerLinkedin");
   if (!r.repondu) {   // extension présente mais trop ancienne
@@ -566,6 +575,11 @@ function surveillerConnexionLinkedin(url) {
     }
   }, 3000);
 }
+
+$("#btnInstallerExtension")?.addEventListener("click", () => {
+  window.open(LIEN_EXTENSION, "_blank", "noopener");
+  toast("Installe l'extension, puis recharge cette page.");
+});
 
 $("#btnConnecterLinkedin")?.addEventListener("click", () =>
   surveillerConnexionLinkedin("https://www.linkedin.com/login"));
@@ -1142,12 +1156,17 @@ function majEtapeOnboarding(etape) {
 
 async function majEtatObLinkedin() {
   const el = $("#obLinkedinEtat");
+  const btnInstall = $("#obInstallerExtension"), btnConn = $("#obConnecterLinkedin");
   if (!extensionPresente) {
     el.textContent = "extension non installée"; el.className = "badge badge-erreur";
     $("#obLinkedinAide").textContent =
-      "L'extension Chrome Skaelia n'est pas détectée — tu peux terminer et l'installer plus tard.";
+      "Installe l'extension Chrome Skaelia (un clic), puis recharge la page. Tu peux aussi terminer et le faire plus tard.";
+    if (btnInstall) btnInstall.hidden = false;
+    if (btnConn) btnConn.hidden = true;
     return;
   }
+  if (btnInstall) btnInstall.hidden = true;
+  if (btnConn) btnConn.hidden = false;
   $("#obLinkedinAide").textContent = "";
   const r = await verifierSessionLinkedin();
   if (!r.repondu) {   // extension présente mais trop ancienne
@@ -1170,6 +1189,10 @@ async function terminerOnboarding() {
 $("#obConnecterGmail")?.addEventListener("click", () => { window.location.href = "/connexion/gmail"; });
 $("#obSauterGmail")?.addEventListener("click", () => majEtapeOnboarding("linkedin"));
 $("#obTerminer")?.addEventListener("click", terminerOnboarding);
+$("#obInstallerExtension")?.addEventListener("click", () => {
+  window.open(LIEN_EXTENSION, "_blank", "noopener");
+  toast("Installe l'extension, puis reviens et recharge la page.");
+});
 
 $("#obConnecterLinkedin")?.addEventListener("click", () => {
   if (!extensionPresente) { majEtatObLinkedin(); return; }
