@@ -597,3 +597,10 @@ input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
 .info-bulle strong { color: var(--texte); }
 .info-bulle p { margin: 8px 0 0; color: var(--texte-2); }
 .info-icone:hover .info-bulle, .info-icone:focus .info-bulle { opacity: 1; visibility: visible; }
+
+/* Offre publiée par un cabinet (entreprise cliente retrouvée) */
+.via-cabinet {
+  margin-top: 4px; font-size: 12px; color: var(--attention);
+  background: rgba(138,109,59,.08); border-radius: 6px; padding: 2px 7px; display: inline-block;
+}
+.via-cabinet strong { color: var(--texte); }
