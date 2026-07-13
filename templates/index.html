@@ -167,11 +167,20 @@
             </div>
           </div>
         </div>
-        <label class="filtre-prospection">
-          <input type="checkbox" id="fInclureCabinets">
-          <span class="inter-visuel-mini"></span>
-          <span>Inclure les offres de cabinets (retrouve l'entreprise cliente citée dans l'annonce)</span>
-        </label>
+        <div class="filtre-ligne">
+          <label class="filtre-prospection">
+            <input type="checkbox" id="fInclureCabinets">
+            <span class="inter-visuel-mini"></span>
+            <span>Offre de cabinet</span>
+          </label>
+          <span class="info-icone" tabindex="0" aria-label="En savoir plus">i
+            <span class="info-bulle" role="tooltip">
+              <strong>💡 Offre de cabinet</strong>
+              <p>Certaines annonces sont publiées par un cabinet de recrutement <em>pour le compte d'une autre entreprise</em>.</p>
+              <p>Quand cette option est activée, l'IA analyse le texte de l'annonce pour retrouver <strong>l'entreprise cliente réelle</strong> (« pour notre client X », « le groupe Y recrute »…) et te la présente à la place du cabinet.</p>
+            </span>
+          </span>
+        </div>
         <div class="filtre-ligne">
           <label class="filtre-prospection">
             <input type="checkbox" id="fRechercheAmelioree">
@@ -180,12 +189,10 @@
           </label>
           <span class="info-icone" tabindex="0" aria-label="En savoir plus">i
             <span class="info-bulle" role="tooltip">
-              <strong>💡 Point d'info : Identifier les décideurs avec FullEnrich Search</strong>
-              <p>Dans notre démarche de prospection, nous utilisons des sites comme Indeed ou HelloWork pour repérer des « signaux d'affaires » (les entreprises qui recrutent). Le problème, c'est que ces annonces nous donnent l'entreprise, mais jamais l'identité de la personne en interne qui pilote ce besoin.</p>
-              <p>C'est ici qu'intervient le moteur de recherche <strong>FullEnrich Search</strong> :</p>
-              <p><strong>Cartographie des comptes :</strong> dès qu'une entreprise intéressante est repérée via une offre d'emploi, on utilise FullEnrich pour analyser son organigramme et ses effectifs.</p>
-              <p><strong>Identification précise du décideur :</strong> l'outil permet de filtrer les employés pour cibler la bonne personne (le DRH, le chef du service concerné, ou le dirigeant). On passe de « l'entreprise X recrute » à « voici le nom et le poste exact de la personne à approcher ».</p>
-              <p><strong>⚠️ Point budget :</strong> l'utilisation de cet outil représente un coût supplémentaire (licence additionnelle). Ce budget se justifie par la nécessité de faire le pont entre la détection d'opportunités (l'annonce) et la capacité à cibler nominalement les bons interlocuteurs.</p>
+              <strong>💡 Identifier les décideurs avec FullEnrich Search</strong>
+              <p>Les annonces (Indeed, HelloWork…) donnent l'entreprise qui recrute, mais pas la personne en interne qui pilote le besoin.</p>
+              <p><strong>FullEnrich Search</strong> analyse l'organigramme de l'entreprise et cible la bonne personne (DRH, chef de service, dirigeant) : on passe de « l'entreprise X recrute » à « voici le nom et le poste exact à approcher ».</p>
+              <p><strong>⚠️ Budget :</strong> outil payant (licence additionnelle).</p>
             </span>
           </span>
         </div>
