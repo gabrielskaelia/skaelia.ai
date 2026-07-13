@@ -254,26 +254,35 @@ def reattribuer(offres, exclusions, log=print):
             except Exception:
                 resultats[o["url"]] = None
 
-    gardees, nommees, estimees = [], 0, 0
+    # On GARDE toutes les offres de cabinet (le nom du cabinet est toujours
+    # affiché) : c'est l'intérêt du bouton sur les annonces opaques. Quand le
+    # client est nommé ou estimé, on l'affiche à la place ; sinon on signale
+    # « client non identifié » et l'offre n'est pas prospectée (entreprise vide).
+    gardees, nommees, estimees, inconnues = [], 0, 0, 0
     for o in offres:
         if o not in de_cabinets:
             gardees.append(o)
             continue
+        o["via_cabinet"] = o.get("entreprise", "")
+        o.pop("client_estime", None)
+        o.pop("client_confiance", None)
+        o.pop("client_inconnu", None)
         res = resultats.get(o["url"])
         if res:
-            o["via_cabinet"] = o.get("entreprise", "")
             o["entreprise"] = res["client"]
             if res["estime"]:
                 o["client_estime"] = True
                 o["client_confiance"] = res["confiance"]
                 estimees += 1
             else:
-                o.pop("client_estime", None)
-                o.pop("client_confiance", None)
                 nommees += 1
-            gardees.append(o)
-        # sinon : annonce anonyme non identifiable -> écartée
-    ecartees = len(de_cabinets) - nommees - estimees
+        else:
+            # client anonyme non identifié : on garde l'offre pour l'affichage,
+            # mais entreprise vide -> ignorée par la consolidation (pas prospectée)
+            o["entreprise"] = ""
+            o["client_inconnu"] = True
+            inconnues += 1
+        gardees.append(o)
     log(f"Cabinets : {nommees} client(s) nommé(s), {estimees} estimé(s) par IA, "
-        f"{ecartees} écarté(s) (non identifiable) sur {len(a_analyser)} annonce(s)")
+        f"{inconnues} cabinet(s) affiché(s) sans client identifié")
     return gardees

@@ -35,6 +35,7 @@
     "\"directeur général\" OR CEO OR fondateur OR gérant"
   ],
   "exclusions_cabinets": [
+    "Skaelia",
     "Adecco", "Manpower", "Randstad", "Synergie", "Proman", "Crit",
     "Actual", "Partnaire", "Temporis", "Start People", "Samsic Emploi",
     "Aquila RH", "Vitalis Médical", "Lynx RH", "Michael Page", "Page Personnel",

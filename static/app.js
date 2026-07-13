@@ -463,7 +463,7 @@ function dessinerTable() {
       "<thead><tr><th>Poste</th><th>Entreprise</th><th>Cabinet</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>
         <td><a href="${echapper(o.url)}" target="_blank" rel="noopener">${echapper(o.titre)}</a></td>
-        <td>${echapper(o.entreprise)}${badgeType(o.type)}${badgeEstimation(o)}</td>
+        <td>${o.client_inconnu ? '<span class="txt-faible">client non identifié</span>' : echapper(o.entreprise)}${badgeType(o.type)}${badgeEstimation(o)}</td>
         <td>${o.via_cabinet ? `<span class="badge-cabinet">🏢 ${echapper(o.via_cabinet)}</span>` : '<span class="txt-faible">—</span>'}</td>
         <td>${echapper(o.lieu)}</td>
         <td>${echapper(o.contrat)}</td><td>${echapper(o.salaire)}</td>
