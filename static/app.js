@@ -405,18 +405,21 @@ function dessinerTable() {
     }
     const visibles = resultats.contacts.map((c, i) => ({ c, i }));
     table.innerHTML =
-      "<thead><tr><th></th><th>Contact</th><th>Poste du contact</th><th>Entreprise</th><th>Recrute actuellement</th><th>LinkedIn</th><th></th></tr></thead><tbody>" +
+      "<thead><tr><th>Contact</th><th>Poste du contact</th><th>Entreprise</th><th>Recrute actuellement</th><th></th><th></th></tr></thead><tbody>" +
       visibles.map(({ c, i }) => {
         const dansCarnet = clesSauvegardees.has(cleContact(c));
+        const profil = c.url_linkedin
+          ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
+          : "";
+        const ajout = dansCarnet
+          ? '<span class="badge badge-ok">ajouté ✓</span>'
+          : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
         return `<tr>
-        <td>${dansCarnet
-            ? '<span class="badge badge-ok">ajouté ✓</span>'
-            : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`}</td>
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
         <td>${echapper(c.entreprise)}${badgeType(c.type)}</td>
         <td class="cellule-postes">${offresDeLEntreprise(c.entreprise)}</td>
-        <td><a href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil</a></td>
+        <td><div class="cellule-actions">${profil}${ajout}</div></td>
         <td><button class="btn-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button></td></tr>`;
       }).join("") +
       "</tbody>";
