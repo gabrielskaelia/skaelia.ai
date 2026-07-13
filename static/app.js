@@ -25,6 +25,7 @@ let sondage = null;
 let resultats = null;
 let tableActive = "contacts";
 let dernierCabinet = false;   // dernière recherche = « Offre de cabinet » ?
+let dernierNbPartiels = -1;   // nb de contacts déjà rendus dans l'affichage progressif
 let mesContacts = [];
 let clesSauvegardees = new Set();
 let _sondageEnrich = null;
@@ -273,6 +274,7 @@ async function lancerRecherche() {
   $("#suiviContacts").hidden = true;
   $("#suiviContactsListe").innerHTML = "";
   $("#suiviContactsNb").textContent = "0";
+  dernierNbPartiels = -1;
   $("#suiviSpinner").style.display = "";
   if (sondage) clearInterval(sondage);
   sondage = setInterval(interrogerStatut, 1500);
@@ -290,21 +292,26 @@ async function interrogerStatut() {
      <span>${echapper(l.texte)}</span></div>`).join("");
   journal.scrollTop = journal.scrollHeight;
 
-  // Contacts trouvés affichés progressivement, un par un, pendant la recherche.
+  // Contacts trouvés affichés progressivement, avec la MÊME mise en page que le
+  // tableau final (toutes les infos à chaque ajout). Re-render seulement quand
+  // le nombre change, pour ne pas casser le défilement.
   const partiels = statut.contacts_partiels || [];
   const blocC = $("#suiviContacts");
   if (blocC) {
     if (partiels.length) {
       blocC.hidden = false;
       $("#suiviContactsNb").textContent = partiels.length;
-      $("#suiviContactsListe").innerHTML = partiels.map((c) =>
-        `<div class="suivi-contact-ligne">
-           <span class="contact-avatar-mini">${echapper(initiales(c.nom))}</span>
-           <span class="suivi-contact-nom">${echapper(c.nom)}</span>
-           <span class="suivi-contact-ent">${echapper(c.entreprise || "")}</span>
-         </div>`).join("");
+      if (partiels.length !== dernierNbPartiels) {
+        dernierNbPartiels = partiels.length;
+        const cont = $("#suiviContactsListe");
+        cont.innerHTML = htmlCartesContacts(partiels, { offresSource: statut.offres_partiels || [] });
+        cont.querySelectorAll(".btn-ajout").forEach((b) =>
+          b.addEventListener("click", () => ajouterContacts([partiels[+b.dataset.idx]]))
+        );
+      }
     } else {
       blocC.hidden = true;
+      dernierNbPartiels = -1;
     }
   }
 
@@ -401,8 +408,9 @@ $$(".onglet").forEach((b) =>
   })
 );
 
-function offresDeLEntreprise(nomEntreprise) {
-  const offres = resultats.offres.filter((o) => o.entreprise === nomEntreprise);
+function offresDeLEntreprise(nomEntreprise, source) {
+  const src = source || (resultats ? resultats.offres : []) || [];
+  const offres = src.filter((o) => o.entreprise === nomEntreprise);
   if (!offres.length) return "";
   return offres.map((o) =>
     `<div class="offre-ligne">
@@ -431,6 +439,41 @@ function initiales(nom) {
   return (mots[0][0] + (mots.length > 1 ? mots[mots.length - 1][0] : "")).toUpperCase();
 }
 
+/* Rend l'en-tête + les cartes contacts (même mise en page partout : tableau
+   final ET affichage progressif). `offresSource` = liste d'offres pour la
+   colonne « Offres publiées » (défaut : resultats.offres). */
+function htmlCartesContacts(contacts, opts = {}) {
+  const offresSource = opts.offresSource;
+  const avecSuppr = opts.avecSuppr;
+  const memeTexte = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+  return `<div class="contacts-entete">
+      <span>Contact</span><span>Poste du contact</span><span>Entreprise</span>
+      <span>Offres publiées</span><span></span><span></span><span></span>
+    </div>` +
+    contacts.map((c, i) => {
+      const dansCarnet = clesSauvegardees.has(cleContact(c));
+      const profil = c.url_linkedin
+        ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
+        : "";
+      const ajout = dansCarnet
+        ? '<span class="badge badge-ok">ajouté ✓</span>'
+        : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
+      const aVraiPoste = c.poste && !memeTexte(c.poste, c.entreprise);
+      return `<div class="contact-carte">
+        <div class="contact-tete">
+          <span class="contact-avatar">${echapper(initiales(c.nom))}</span>
+          <span class="contact-nom">${echapper(c.nom)}</span>
+        </div>
+        <div class="contact-col contact-poste">${aVraiPoste ? echapper(c.poste) : ""}</div>
+        <div class="contact-col contact-entreprise">${echapper(c.entreprise)}${badgeType(c.type)}</div>
+        <div class="contact-offres">${offresDeLEntreprise(c.entreprise, offresSource)}</div>
+        <div class="contact-profil">${profil}</div>
+        <div class="contact-ajout">${ajout}</div>
+        ${avecSuppr ? `<button class="btn-suppr contact-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button>` : "<span></span>"}
+      </div>`;
+    }).join("");
+}
+
 function dessinerTable() {
   const table = $("#tableResultats");
   const liste = $("#listeContacts");
@@ -444,35 +487,7 @@ function dessinerTable() {
       liste.innerHTML = "<div style='padding:24px; color:var(--texte-2)'>Aucun contact dans cette recherche.</div>";
       return;
     }
-    const memeTexte = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
-    liste.innerHTML =
-      `<div class="contacts-entete">
-        <span>Contact</span><span>Poste du contact</span><span>Entreprise</span>
-        <span>Offres publiées</span><span></span><span></span><span></span>
-      </div>` +
-      resultats.contacts.map((c, i) => {
-        const dansCarnet = clesSauvegardees.has(cleContact(c));
-        const profil = c.url_linkedin
-          ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
-          : "";
-        const ajout = dansCarnet
-          ? '<span class="badge badge-ok">ajouté ✓</span>'
-          : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
-        // Pas de vrai poste (souvent le nom de l'entreprise en secours) → on laisse vide
-        const aVraiPoste = c.poste && !memeTexte(c.poste, c.entreprise);
-        return `<div class="contact-carte">
-        <div class="contact-tete">
-          <span class="contact-avatar">${echapper(initiales(c.nom))}</span>
-          <span class="contact-nom">${echapper(c.nom)}</span>
-        </div>
-        <div class="contact-col contact-poste">${aVraiPoste ? echapper(c.poste) : ""}</div>
-        <div class="contact-col contact-entreprise">${echapper(c.entreprise)}${badgeType(c.type)}</div>
-        <div class="contact-offres">${offresDeLEntreprise(c.entreprise)}</div>
-        <div class="contact-profil">${profil}</div>
-        <div class="contact-ajout">${ajout}</div>
-        <button class="btn-suppr contact-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button>
-      </div>`;
-      }).join("");
+    liste.innerHTML = htmlCartesContacts(resultats.contacts, { avecSuppr: true });
     liste.querySelectorAll(".btn-ajout").forEach((b) =>
       b.addEventListener("click", () => ajouterContacts([resultats.contacts[+b.dataset.idx]]))
     );

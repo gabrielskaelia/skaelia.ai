@@ -47,7 +47,7 @@ def _job(email=None):
     email = email or session["email"]
     return JOBS.setdefault(email, {
         "etat": "inactif", "logs": [], "resultats": None, "erreur": "", "titre": "",
-        "contacts_partiels": []})
+        "contacts_partiels": [], "offres_partiels": []})
 
 
 def _config():
@@ -547,8 +547,12 @@ def _executer_en_fond(email, params):
     def maj_contacts(contacts):
         # Affichage progressif : on expose les contacts trouvés au fil de l'eau.
         job["contacts_partiels"] = contacts
+
+    def maj_offres(offres):
+        job["offres_partiels"] = offres
     try:
-        job["resultats"] = pipeline.executer(params, log=log, sur_contacts=maj_contacts)
+        job["resultats"] = pipeline.executer(
+            params, log=log, sur_contacts=maj_contacts, sur_offres=maj_offres)
         job["etat"] = "termine"
     except Exception as e:
         job["erreur"] = str(e)
@@ -610,7 +614,8 @@ def lancer():
             params["mode_clients"] = True
         titre = (poste or "Offres de nos clients") + (f" — {params['lieu']}" if params["lieu"] else "")
         job.update({"etat": "en_cours", "logs": [], "resultats": None,
-                    "erreur": "", "titre": titre, "contacts_partiels": []})
+                    "erreur": "", "titre": titre,
+                    "contacts_partiels": [], "offres_partiels": []})
         threading.Thread(target=_executer_en_fond,
                          args=(session["email"], params), daemon=True).start()
     return jsonify({"ok": True})
@@ -623,6 +628,7 @@ def statut():
                "logs": job["logs"], "erreur": job["erreur"]}
     if job["etat"] == "en_cours":
         reponse["contacts_partiels"] = job.get("contacts_partiels") or []
+        reponse["offres_partiels"] = job.get("offres_partiels") or []
     if job["etat"] == "termine" and job["resultats"]:
         r = job["resultats"]
         reponse["synthese"] = {

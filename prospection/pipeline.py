@@ -178,12 +178,14 @@ def _marquer_nouveautes(offres, signature):
     return 0 if premiere_fois else nb_nouvelles
 
 
-def executer(params, log=print, sur_contacts=None):
+def executer(params, log=print, sur_contacts=None, sur_offres=None):
     """Exécute le pipeline complet et retourne
     {offres, entreprises, contacts, fichier, nb_nouvelles}.
 
     `sur_contacts(liste)` — appelé au fil de l'eau à chaque contact trouvé,
-    pour un affichage progressif côté interface."""
+    pour un affichage progressif côté interface.
+    `sur_offres(liste)` — appelé une fois les offres consolidées, pour que
+    l'affichage progressif dispose des offres de chaque entreprise."""
     p = {**DEFAUTS, **{k: v for k, v in params.items() if v is not None}}
     poste = (p.get("poste") or "").strip()
     mode_clients = bool(p.get("mode_clients"))
@@ -303,6 +305,12 @@ def executer(params, log=print, sur_contacts=None):
         avant = len(offres)
         offres = [o for o in offres if o.get("type") in types_voulus]
         log(f"Offres filtrées sur le type ({', '.join(sorted(types_voulus))}) : {len(offres)}/{avant}")
+
+    if sur_offres:  # l'UI a besoin des offres pour la colonne « Offres publiées »
+        try:
+            sur_offres(list(offres))
+        except Exception:
+            pass
 
     # --- 3. Décideurs (sans email : le vrai email + téléphone sont trouvés à
     #        l'ajout du contact, via FullEnrich) — entreprises en parallèle ---

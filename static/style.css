@@ -400,19 +400,12 @@ td a:hover { text-decoration: underline; }
 .credit-alerte { color: var(--attention); font-weight: 600; margin: 6px 0; }
 .suivi-contacts { margin-top: 14px; border-top: 1px solid var(--bordure-2); padding-top: 12px; }
 .suivi-contacts-titre { font-weight: 600; color: var(--texte-2); margin-bottom: 8px; }
-.suivi-contacts-liste { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
-.suivi-contact-ligne {
-  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
-  background: var(--surface-2); border-radius: 8px;
-  animation: apparition .25s ease;
+.suivi-contacts-liste {
+  display: block; max-height: 420px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--bordure); border-radius: 12px;
 }
-.contact-avatar-mini {
-  width: 26px; height: 26px; border-radius: 50%; flex: 0 0 26px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
-}
-.suivi-contact-nom { font-weight: 600; }
-.suivi-contact-ent { color: var(--texte-2); margin-left: auto; }
+.suivi-contacts-liste > .contact-carte:first-of-type { border-top: none; }
+.suivi-contacts-liste > .contact-carte { animation: apparition .25s ease; }
 @keyframes apparition { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .cellule-postes { max-width: 380px; }
 .offre-ligne { margin-bottom: 3px; }
