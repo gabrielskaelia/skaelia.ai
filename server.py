@@ -694,6 +694,7 @@ def api_ajouter_contacts():
             st = nicoka.statut_pour(c.get("email", ""), c.get("nom", ""), cache)
             c["nicoka"] = {
                 "verifie": True,
+                "id": st.get("id"),
                 "en_base": st.get("en_base", False),
                 "recent": st.get("recent", False),
                 "jours": st.get("jours_depuis_action"),
@@ -759,7 +760,8 @@ def api_verifier_nicoka_tous():
 
     def calcul(c):
         st = nicoka.statut_pour(c.get("email", ""), c.get("nom", ""), cache)
-        return {"verifie": True, "en_base": st.get("en_base", False),
+        return {"verifie": True, "id": st.get("id"),
+                "en_base": st.get("en_base", False),
                 "recent": st.get("recent", False), "jours": st.get("jours_depuis_action"),
                 "dernier_contact": st.get("last_action_on", ""),
                 "dernier_echange": st.get("dernier_echange") or {},
@@ -806,6 +808,18 @@ def api_maj_contact():
     if not contact:
         return jsonify({"erreur": "Contact introuvable"}), 404
     return jsonify({"ok": True, "contact": contact})
+
+
+@app.get("/api/nicoka/echange")
+def api_nicoka_echange():
+    """Contenu réel de la dernière action Nicoka d'un contact (à la demande)."""
+    try:
+        nid = int(request.args.get("id") or 0)
+    except ValueError:
+        nid = 0
+    if not nid:
+        return jsonify({"erreur": "Identifiant Nicoka manquant."}), 400
+    return jsonify(nicoka.dernier_echange_detaille(nid) or {})
 
 
 @app.get("/api/nicoka/etat")

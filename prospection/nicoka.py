@@ -120,6 +120,44 @@ def dernier_echange(contact):
     return {"type": lib, "date": date}
 
 
+_TYPE_ACTIVITE = {1: "note", 2: "appel", 3: "email", 4: "réunion", 5: "tâche", 6: "SMS"}
+
+
+def _texte_propre(html):
+    """Retire les balises HTML et compacte les espaces."""
+    if not html:
+        return ""
+    txt = re.sub(r"<[^>]+>", " ", str(html))
+    txt = txt.replace("&nbsp;", " ").replace("&#39;", "'").replace("&amp;", "&")
+    return re.sub(r"\s+", " ", txt).strip()
+
+
+def dernier_echange_detaille(nicoka_id):
+    """Récupère À LA DEMANDE la dernière ACTIVITÉ d'un contact Nicoka (le contenu
+    réel affiché dans « Dernière action » : type, sujet, corps, date, auteur).
+    Renvoie {} si aucune activité ou en cas d'erreur."""
+    if not nicoka_id:
+        return {}
+    try:
+        rep = _get(f"contacts/{int(nicoka_id)}/activities", {})
+    except Exception:
+        return {}
+    lot = rep if isinstance(rep, list) else rep.get("data", [])
+    if not lot:
+        return {}
+    # La plus récente d'abord
+    lot = sorted(lot, key=lambda a: (a.get("date") or a.get("cdate") or ""), reverse=True)
+    a = lot[0]
+    corps = _texte_propre(a.get("comments") or "")
+    return {
+        "type": _TYPE_ACTIVITE.get(a.get("type"), "échange"),
+        "sujet": (a.get("subject") or "").strip(),
+        "corps": corps[:2000],
+        "date": a.get("date") or a.get("cdate") or "",
+        "auteur": _texte_propre(a.get("label") or ""),
+    }
+
+
 def synchroniser(log=lambda m: None):
     """Récupère tous les contacts Nicoka (paginé) et met à jour le cache local.
     Retourne le nombre de contacts synchronisés."""

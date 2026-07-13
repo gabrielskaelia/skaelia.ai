@@ -715,13 +715,42 @@ function badgeNicoka(c) {
     : `<span class="badge ${cls}">${txt}</span>`;
 }
 
-/* Dernier échange Nicoka (type + date), façon Nicoka. */
+/* Dernier échange Nicoka (type + date), cliquable pour voir le contenu réel. */
 function echangeNicoka(c) {
-  const e = (c.nicoka || {}).dernier_echange || {};
-  if (!e.type && !e.date) return '<span class="txt-faible">—</span>';
+  const n = c.nicoka || {};
+  const e = n.dernier_echange || {};
+  const cliquable = n.en_base && n.id;
+  if (!e.type && !e.date) {
+    // Pas d'info en cache mais contact connu de Nicoka → on peut aller chercher
+    return cliquable
+      ? `<button class="lien-echange" data-nicoka-id="${echapper(n.id)}">voir le dernier échange ↗</button>`
+      : '<span class="txt-faible">—</span>';
+  }
   const d = dateFr(e.date);
-  const libelle = e.type || "contact";
-  return `<span title="Dernière interaction dans Nicoka">${echapper(libelle)}${d && d !== "—" ? " · " + d : ""}</span>`;
+  const libelle = (e.type || "contact") + (d && d !== "—" ? " · " + d : "");
+  return cliquable
+    ? `<button class="lien-echange" data-nicoka-id="${echapper(n.id)}" title="Voir le dernier échange">${echapper(libelle)} ↗</button>`
+    : `<span title="Dernière interaction dans Nicoka">${echapper(libelle)}</span>`;
+}
+
+/* Ouvre la modale et charge le contenu réel de la dernière action Nicoka. */
+async function voirEchangeNicoka(id) {
+  const corps = $("#echangeCorps");
+  $("#echangeMeta").textContent = "";
+  corps.textContent = "Chargement…";
+  $("#voileEchange").hidden = false;
+  let e = {};
+  try { e = await api("/api/nicoka/echange?id=" + encodeURIComponent(id)); }
+  catch (err) { corps.textContent = "Impossible de récupérer l'échange : " + err.message; return; }
+  if (!e || (!e.corps && !e.sujet)) {
+    corps.textContent = "Aucun contenu d'échange disponible dans Nicoka pour ce contact.";
+    return;
+  }
+  $("#echangeTitre").textContent = e.sujet || "Dernier échange";
+  const d = dateFr(e.date);
+  $("#echangeMeta").textContent = [e.type, d && d !== "—" ? d : "", (e.auteur || "").replace(/\s+/g, " ")]
+    .filter(Boolean).join(" · ");
+  corps.textContent = e.corps || "(pas de contenu texte)";
 }
 
 let modeSelection = false;   // les cases n'apparaissent qu'en mode sélection
@@ -785,6 +814,8 @@ function dessinerMesContacts() {
   });
   table.querySelectorAll(".mc-sel").forEach((chk) =>
     chk.addEventListener("change", majInfoSelection));
+  table.querySelectorAll(".lien-echange").forEach((b) =>
+    b.addEventListener("click", () => voirEchangeNicoka(b.dataset.nicokaId)));
 }
 
 function majInfoSelection() {
@@ -979,6 +1010,11 @@ $("#voilePrendreContact").addEventListener("click", (e) => {
 });
 
 $("#btnExportContacts")?.addEventListener("click", () => { location.href = "/api/mes-contacts/export"; });
+
+$("#btnFermerEchange")?.addEventListener("click", () => { $("#voileEchange").hidden = true; });
+$("#voileEchange")?.addEventListener("click", (e) => {
+  if (e.target === $("#voileEchange")) $("#voileEchange").hidden = true;
+});
 
 /* ---- Ajouter un contact à la main ---- */
 $("#btnAjouterContact")?.addEventListener("click", () => {
