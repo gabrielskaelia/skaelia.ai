@@ -1,13 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Skaelia Prospection — Envoi LinkedIn",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Envoie directement les messages LinkedIn depuis l'outil de prospection Skaelia (ai.skaelia.com).",
-  "permissions": ["tabs", "scripting", "storage", "cookies"],
+  "permissions": ["storage", "cookies"],
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://ai.skaelia.com/*"
   ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
@@ -21,5 +26,12 @@
       "run_at": "document_idle"
     }
   ],
-  "action": { "default_title": "Skaelia Prospection" }
+  "action": {
+    "default_title": "Skaelia Prospection",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
 }

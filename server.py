@@ -64,7 +64,8 @@ def _ecrire_config(config):
 
 ROUTES_PUBLIQUES = ("/connexion", "/api/connexion", "/api/demande-acces",
                     "/valider/", "/definir-mdp/", "/api/definir-mdp", "/static/",
-                    "/connexion/google", "/connexion/google/callback")
+                    "/connexion/google", "/connexion/google/callback",
+                    "/confidentialite-extension")
 
 
 @app.before_request
@@ -84,6 +85,13 @@ def page_connexion():
     if session.get("email"):
         return redirect("/")
     return render_template("connexion.html")
+
+
+@app.get("/confidentialite-extension")
+def confidentialite_extension():
+    """Politique de confidentialité de l'extension Chrome (requise par le
+    Chrome Web Store). Page publique."""
+    return render_template("confidentialite_extension.html")
 
 
 @app.post("/api/connexion")

@@ -14,3 +14,7 @@ __pycache__/
 Thumbs.db
 *.log
 scratch_server.log
+
+# Artefacts de build extension (regénérables)
+extension-skaelia-store.zip
+extension-skaelia-store-capture.png
