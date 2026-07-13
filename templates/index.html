@@ -230,9 +230,12 @@
        <h1>Mes contacts</h1>
        <p class="sous-titre">Les contacts que vous avez ajoutés depuis vos recherches. Cliquez sur « Prendre contact » pour les joindre.</p>
      </div>
-     <div class="res-actions" id="actionsContacts" hidden>
-       <button class="btn btn-primaire" id="btnToutProspecter">Tout prospecter</button>
-       <button class="btn btn-secondaire" id="btnExportContacts">Exporter en Excel</button>
+     <div class="res-actions">
+       <button class="btn btn-secondaire" id="btnAjouterContact">+ Ajouter un contact</button>
+       <span id="actionsContacts" class="res-actions" hidden style="margin:0;">
+         <button class="btn btn-primaire" id="btnToutProspecter">Tout prospecter</button>
+         <button class="btn btn-secondaire" id="btnExportContacts">Exporter en Excel</button>
+       </span>
      </div>
      <div class="carte-table" id="carteMesContacts">
        <div class="table-defilante"><table id="tableMesContacts"></table></div>
@@ -375,6 +378,31 @@
 
       <div class="modale-actions">
         <button class="btn btn-secondaire" id="btnFermerReglages">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modale « Ajouter un contact » ===== -->
+  <div class="voile" id="voileAjoutContact" hidden>
+    <div class="modale">
+      <h2>Ajouter un contact</h2>
+      <p class="sous-titre">Le message de prospection sera généré automatiquement, comme pour les autres contacts.</p>
+      <div class="message-info erreur" id="msgAjoutContact" hidden></div>
+      <label class="champ"><span class="champ-libelle">Nom *</span>
+        <input type="text" id="acNom" placeholder="ex. : Marie Dupont" autocomplete="off"></label>
+      <label class="champ"><span class="champ-libelle">Poste</span>
+        <input type="text" id="acPoste" placeholder="ex. : Responsable RH" autocomplete="off"></label>
+      <label class="champ"><span class="champ-libelle">Entreprise</span>
+        <input type="text" id="acEntreprise" placeholder="ex. : Legrand" autocomplete="off"></label>
+      <label class="champ"><span class="champ-libelle">Email</span>
+        <input type="email" id="acEmail" placeholder="ex. : marie.dupont@legrand.com" autocomplete="off"></label>
+      <label class="champ"><span class="champ-libelle">Téléphone</span>
+        <input type="text" id="acTel" placeholder="ex. : 06 12 34 56 78" autocomplete="off"></label>
+      <label class="champ"><span class="champ-libelle">Profil LinkedIn (URL)</span>
+        <input type="text" id="acLinkedin" placeholder="https://www.linkedin.com/in/…" autocomplete="off"></label>
+      <div class="modale-actions">
+        <button class="btn btn-primaire" id="btnValiderAjoutContact">Ajouter</button>
+        <button class="btn btn-secondaire" id="btnFermerAjoutContact">Annuler</button>
       </div>
     </div>
   </div>

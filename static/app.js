@@ -947,6 +947,35 @@ $("#voilePrendreContact").addEventListener("click", (e) => {
 
 $("#btnExportContacts")?.addEventListener("click", () => { location.href = "/api/mes-contacts/export"; });
 
+/* ---- Ajouter un contact à la main ---- */
+$("#btnAjouterContact")?.addEventListener("click", () => {
+  ["acNom", "acPoste", "acEntreprise", "acEmail", "acTel", "acLinkedin"].forEach((id) => { $("#" + id).value = ""; });
+  $("#msgAjoutContact").hidden = true;
+  $("#voileAjoutContact").hidden = false;
+  $("#acNom").focus();
+});
+$("#btnFermerAjoutContact")?.addEventListener("click", () => { $("#voileAjoutContact").hidden = true; });
+$("#voileAjoutContact")?.addEventListener("click", (e) => {
+  if (e.target === $("#voileAjoutContact")) $("#voileAjoutContact").hidden = true;
+});
+$("#btnValiderAjoutContact")?.addEventListener("click", async () => {
+  const nom = $("#acNom").value.trim();
+  const err = $("#msgAjoutContact");
+  if (!nom) { err.textContent = "Le nom est obligatoire."; err.hidden = false; return; }
+  const email = $("#acEmail").value.trim();
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    err.textContent = "Adresse email invalide."; err.hidden = false; return;
+  }
+  const contact = {
+    nom, poste: $("#acPoste").value.trim(), entreprise: $("#acEntreprise").value.trim(),
+    email, telephone: $("#acTel").value.trim(), url_linkedin: $("#acLinkedin").value.trim(),
+    statut_email: "", offres: [], source_contact: "manuel",
+  };
+  await ajouterContacts([contact]);   // POST + vérif Nicoka + rafraîchissement
+  $("#voileAjoutContact").hidden = true;
+  montrerVue("contacts");
+});
+
 /* ---- Tout prospecter : sélection + canal + parcours étape par étape ---- */
 
 let fileProspection = [];
