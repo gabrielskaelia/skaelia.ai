@@ -177,29 +177,60 @@ def _nom_client_propre(nom):
     return nom
 
 
+def stade_client_signe():
+    """Numéro de l'étape de vente « Client signé / convention signée »
+    (configurable dans config.json → nicoka.stade_client_signe ; 5 par défaut)."""
+    return int(_config().get("stade_client_signe", 5))
+
+
 def synchroniser_references(log=lambda m: None):
-    """Construit la liste des « références clients » (missions de recrutement
-    Nicoka : client + rôle recruté), pour enrichir les messages de prospection.
+    """Construit la liste des CLIENTS SIGNÉS et des « références » (client + rôle)
+    pour enrichir les messages de prospection.
+
+    Source des clients : les OPPORTUNITÉS Nicoka dont l'étape de vente vaut
+    « Client signé » (stage = stade_client_signe()). Le compte de l'opportunité
+    (customerid) se résout via le endpoint `customers` (PAS `companies`).
     Retourne le nombre de références."""
     if not est_configure():
         return 0
-    # 1. Carte identifiant entreprise -> nom
+
+    # 1. Comptes (customers) : identifiant -> nom
     noms = {}
     offset = 0
     while True:
-        d = _get("companies", {"limit": 200, "offset": offset})
+        d = _get("customers", {"limit": 200, "offset": offset})
         lot = d.get("data", [])
         if not lot:
             break
         for c in lot:
-            noms[c.get("id")] = (c.get("company_name") or c.get("label") or "").strip()
+            noms[c.get("id")] = (c.get("label") or c.get("company_name") or "").strip()
         if len(lot) < 200:
             break
         offset += 200
 
-    # 2. Missions -> références (client + rôle) + liste des entreprises clientes
+    # 2. Opportunités au stade « Client signé » -> clients signés
+    stade = stade_client_signe()
+    clients = set()       # noms des comptes clients signés
+    clients_ids = set()   # leurs identifiants (pour rattacher les missions)
+    offset = 0
+    while True:
+        d = _get("opportunities", {"limit": 200, "offset": offset})
+        lot = d.get("data", [])
+        if not lot:
+            break
+        for o in lot:
+            if o.get("stage") == stade:
+                cid = o.get("customerid")
+                nom = (noms.get(cid) or "").strip()
+                if nom:
+                    clients.add(nom)
+                    clients_ids.add(cid)
+        if len(lot) < 200:
+            break
+        offset += 200
+
+    # 3. Références (client + rôle) : missions des clients signés uniquement
     refs = []
-    clients = set()  # noms bruts, pour exclure ces entreprises du sourcing
     offset = 0
     while True:
         d = _get("jobs", {"limit": 200, "offset": offset})
@@ -207,14 +238,13 @@ def synchroniser_references(log=lambda m: None):
         if not lot:
             break
         for j in lot:
-            nom_brut = (noms.get(j.get("customerid")) or "").strip()
-            if nom_brut:
-                clients.add(nom_brut)
-            client = _nom_client_propre(nom_brut)
-            role = (j.get("label") or "").strip()
-            if client and role:
-                refs.append({"role": role, "client": client,
-                             "ville": (j.get("city") or "").strip()})
+            cid = j.get("customerid")
+            if cid in clients_ids:
+                client = _nom_client_propre(noms.get(cid, ""))
+                role = (j.get("label") or "").strip()
+                if client and role:
+                    refs.append({"role": role, "client": client,
+                                 "ville": (j.get("city") or "").strip()})
         if len(lot) < 200:
             break
         offset += 200
@@ -224,7 +254,7 @@ def synchroniser_references(log=lambda m: None):
         {"synced_at": datetime.now().isoformat(timespec="seconds"),
          "references": refs, "clients": sorted(clients)},
         ensure_ascii=False), encoding="utf-8")
-    log(f"{len(refs)} références et {len(clients)} entreprises clientes synchronisées")
+    log(f"{len(clients)} clients signés (stade {stade}) et {len(refs)} références synchronisés")
     return len(refs)
 
 
