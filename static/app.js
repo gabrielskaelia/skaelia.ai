@@ -298,13 +298,6 @@ async function interrogerStatut() {
 
 async function afficherResultats(statut) {
   resultats = await api("/api/resultats");
-  // Ajout automatique de tous les contacts trouvés (plus d'ajout un par un).
-  if (resultats.contacts && resultats.contacts.length) {
-    const aAjouter = resultats.contacts.filter((c) => !clesSauvegardees.has(cleContact(c)));
-    if (aAjouter.length) {
-      try { await ajouterContacts(aAjouter); } catch (e) { /* le toast d'erreur suffit */ }
-    }
-  }
   const s = statut.synthese;
   $("#blocSuivi").hidden = true;
   $("#statsResultats").innerHTML = `
