@@ -777,7 +777,7 @@ function dessinerMesContacts() {
   vide.hidden = true;
   const colSel = modeSelection ? '<th><input type="checkbox" id="mcToutSel" title="Tout sélectionner"></th>' : "";
   table.innerHTML =
-    `<thead><tr>${colSel}<th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Dernier échange</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>` +
+    `<thead><tr>${colSel}<th>Contact</th><th>Poste</th><th>Entreprise</th><th>Statut</th><th>Dernier échange</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>` +
     mesContacts.map((c) => {
       const cle = cleContact(c);
       const offres = c.offres || [];
