@@ -231,14 +231,16 @@ def _analyser_annonce(url, nom_cabinet, avec_ia):
 
 
 def reattribuer(offres, exclusions, log=print):
-    """Pour chaque offre publiée par un cabinet : tente de retrouver le client
-    final et réattribue l'offre à ce client (champ `via_cabinet` conservé).
-    Les offres de cabinets restées anonymes sont écartées, comme avant."""
+    """Mode « Offre de cabinet » : ne renvoie QUE les offres opaques (publiées
+    par un cabinet). Pour chacune, tente de retrouver le client final (nommé
+    dans l'annonce, ou estimé par IA) ; le nom du cabinet est conservé dans
+    `via_cabinet`. Les offres à employeur direct sont écartées."""
     exclusions_norm = {_normaliser(e) for e in (exclusions or []) if e}
     de_cabinets = [o for o in offres
                    if est_cabinet(o.get("entreprise", ""), exclusions_norm)]
     if not de_cabinets:
-        return offres
+        log("Cabinets : aucune offre de cabinet dans les résultats.")
+        return []
     a_analyser = de_cabinets[:MAX_ANNONCES]
     avec_ia = ia_active()
     detail = " (client nommé + estimation IA des annonces anonymes)" if avec_ia else ""
@@ -254,15 +256,13 @@ def reattribuer(offres, exclusions, log=print):
             except Exception:
                 resultats[o["url"]] = None
 
-    # On GARDE toutes les offres de cabinet (le nom du cabinet est toujours
-    # affiché) : c'est l'intérêt du bouton sur les annonces opaques. Quand le
-    # client est nommé ou estimé, on l'affiche à la place ; sinon on signale
-    # « client non identifié » et l'offre n'est pas prospectée (entreprise vide).
+    # Mode cabinet : on ne garde QUE les offres opaques (publiées par un
+    # cabinet). Les offres à employeur direct sont écartées — l'intérêt du
+    # bouton est justement de ne remonter que ces annonces masquées.
+    # Le nom du cabinet est toujours affiché ; le client réel (nommé ou estimé)
+    # prend sa place, sinon « client non identifié » (non prospecté).
     gardees, nommees, estimees, inconnues = [], 0, 0, 0
-    for o in offres:
-        if o not in de_cabinets:
-            gardees.append(o)
-            continue
+    for o in de_cabinets:
         o["via_cabinet"] = o.get("entreprise", "")
         o.pop("client_estime", None)
         o.pop("client_confiance", None)

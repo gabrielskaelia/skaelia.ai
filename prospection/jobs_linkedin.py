@@ -39,9 +39,10 @@ def rechercher_offres(poste, lieu="", pages=2, delai=2.0):
     offres = []
     vus = set()
     for page in range(pages):
-        url = f"{BASE}?keywords={quote(poste)}&start={page * 25}"
-        if lieu:
-            url += f"&location={quote(lieu)}"
+        # Cantonner à la France : sans région précise, LinkedIn renverrait des
+        # offres du monde entier -> on force « France » par défaut.
+        loc = lieu or "France"
+        url = f"{BASE}?keywords={quote(poste)}&location={quote(loc)}&start={page * 25}"
         try:
             html = _get(url)
         except Exception as e:
