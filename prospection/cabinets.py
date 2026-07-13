@@ -8,9 +8,11 @@ de… ») : dans ce cas l'offre est écartée comme avant. Quand le client est
 nommé (« pour notre client Legrand », « le groupe SEB recrute »), l'offre est
 réattribuée à ce client.
 """
+import json
 import re
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from curl_cffi import requests
 
@@ -18,6 +20,8 @@ from .companies import _normaliser
 
 # Plafond d'annonces téléchargées par recherche (une requête HTTP par annonce)
 MAX_ANNONCES = 25
+
+FICHIER_CONFIG = Path(__file__).parent.parent / "config.json"
 
 # Mots qui indiquent que la « capture » n'est pas un nom d'entreprise
 _MOTS_GENERIQUES = {
@@ -102,17 +106,127 @@ def _nettoyer_nom(brut, nom_cabinet=""):
     return nom
 
 
+def _client_nomme(texte, nom_cabinet=""):
+    """Nom de l'entreprise cliente EXPLICITEMENT citée dans l'annonce, ou None."""
+    for motif in _MOTIFS:
+        for m in motif.finditer(texte):
+            nom = _nettoyer_nom(m.group(1), nom_cabinet)
+            if nom:
+                return nom
+    return None
+
+
 def deviner_client(url, nom_cabinet=""):
     """Nom de l'entreprise cliente citée dans l'annonce, ou None."""
     try:
         texte = _texte_annonce(url)
     except Exception:
         return None
-    for motif in _MOTIFS:
-        for m in motif.finditer(texte):
-            nom = _nettoyer_nom(m.group(1), nom_cabinet)
-            if nom:
-                return nom
+    return _client_nomme(texte, nom_cabinet)
+
+
+# --- Estimation IA de l'entreprise derrière une annonce anonyme -------------
+# Beaucoup de cabinets (ex. Skaelia) publient sans nommer leur client
+# (« notre client, une société de conseil de 160 collaborateurs à Levallois… »).
+# Quand aucun nom n'est cité, on demande à Claude de PROPOSER l'entreprise la
+# plus probable à partir des indices (secteur, effectif, lieu, certifications…).
+# Nécessite une clé dans config.json → "anthropic": {"api_key": "..."}.
+
+_ENDPOINT_IA = "https://api.anthropic.com/v1/messages"
+_MODELE_IA_DEFAUT = "claude-opus-4-8"
+_CONFIANCES = ("haute", "moyenne", "faible")
+
+
+def _config_ia():
+    try:
+        c = json.loads(FICHIER_CONFIG.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return c.get("anthropic") or {}
+
+
+def ia_active():
+    """True si une clé d'API Claude est configurée (estimation possible)."""
+    return bool(_config_ia().get("api_key"))
+
+
+def _extraire_json(txt):
+    """Isole le premier objet JSON d'une réponse (au cas où le modèle enrobe)."""
+    debut = txt.find("{")
+    fin = txt.rfind("}")
+    if debut == -1 or fin == -1 or fin < debut:
+        return "{}"
+    return txt[debut:fin + 1]
+
+
+def estimer_client_ia(texte, nom_cabinet=""):
+    """Estimation IA de l'entreprise cliente derrière une annonce anonyme.
+    Retourne {"nom": ..., "confiance": "haute|moyenne|faible"} ou None."""
+    cfg = _config_ia()
+    cle = cfg.get("api_key")
+    if not cle:
+        return None
+    modele = cfg.get("modele") or _MODELE_IA_DEFAUT
+    extrait = (texte or "")[:6000]
+    prompt = (
+        "Tu es analyste en intelligence économique. Le texte ci-dessous est une "
+        "annonce d'emploi publiée par un cabinet de recrutement ou une agence, "
+        "qui NE nomme PAS explicitement l'entreprise cliente pour laquelle il "
+        "recrute. À partir des indices concrets (secteur, effectif, chiffre "
+        "d'affaires, localisation précise, certifications, marchés, produits, "
+        "clients cités, historique…), propose le nom de l'entreprise française "
+        "la PLUS PROBABLE derrière cette annonce.\n\n"
+        f"Cabinet qui publie : {nom_cabinet or 'inconnu'}\n"
+        f'Annonce :\n"""{extrait}"""\n\n'
+        "Réponds UNIQUEMENT par un objet JSON, sans texte autour :\n"
+        '{"entreprise": "<nom probable, ou null si aucun indice suffisant>", '
+        '"confiance": "haute|moyenne|faible", "indices": "<courte justification>"}\n\n'
+        "Ne propose un nom que si des indices concrets le permettent. En cas de "
+        'doute réel, mets "entreprise": null. Ne devine jamais au hasard.')
+    try:
+        r = requests.post(
+            _ENDPOINT_IA,
+            headers={"x-api-key": cle,
+                     "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": modele, "max_tokens": 400,
+                  "messages": [{"role": "user", "content": prompt}]},
+            timeout=45)
+        r.raise_for_status()
+        blocs = r.json().get("content", [])
+        txt = "".join(b.get("text", "") for b in blocs if b.get("type") == "text")
+        data = json.loads(_extraire_json(txt))
+    except Exception:
+        return None
+    nom = (data.get("entreprise") or "")
+    nom = nom.strip() if isinstance(nom, str) else ""
+    if not nom or nom.lower() in ("null", "none", "inconnu", "inconnue", "n/a"):
+        return None
+    # Ne pas « estimer » le cabinet lui-même
+    if nom_cabinet and _normaliser(nom) and _normaliser(nom) in _normaliser(nom_cabinet):
+        return None
+    conf = str(data.get("confiance") or "faible").strip().lower()
+    if conf not in _CONFIANCES:
+        conf = "faible"
+    return {"nom": nom, "confiance": conf}
+
+
+def _analyser_annonce(url, nom_cabinet, avec_ia):
+    """Retrouve l'entreprise cliente d'une annonce de cabinet.
+    Retourne {"client", "estime": bool, "confiance"} ou None."""
+    try:
+        texte = _texte_annonce(url)
+    except Exception:
+        return None
+    # 1. client nommé explicitement -> fiable
+    nom = _client_nomme(texte, nom_cabinet)
+    if nom:
+        return {"client": nom, "estime": False, "confiance": None}
+    # 2. client anonyme -> estimation IA (si configurée)
+    if avec_ia:
+        est = estimer_client_ia(texte, nom_cabinet)
+        if est:
+            return {"client": est["nom"], "estime": True, "confiance": est["confiance"]}
     return None
 
 
@@ -126,30 +240,40 @@ def reattribuer(offres, exclusions, log=print):
     if not de_cabinets:
         return offres
     a_analyser = de_cabinets[:MAX_ANNONCES]
-    log(f"Cabinets : analyse de {len(a_analyser)} annonce(s) pour retrouver l'entreprise cliente…")
+    avec_ia = ia_active()
+    detail = " (client nommé + estimation IA des annonces anonymes)" if avec_ia else ""
+    log(f"Cabinets : analyse de {len(a_analyser)} annonce(s) pour retrouver l'entreprise cliente{detail}…")
 
-    devines = {}
+    resultats = {}
     with ThreadPoolExecutor(max_workers=6) as ex:
-        futurs = {ex.submit(deviner_client, o["url"], o.get("entreprise", "")): o
+        futurs = {ex.submit(_analyser_annonce, o["url"], o.get("entreprise", ""), avec_ia): o
                   for o in a_analyser}
         for f, o in futurs.items():
             try:
-                devines[o["url"]] = f.result()
+                resultats[o["url"]] = f.result()
             except Exception:
-                devines[o["url"]] = None
+                resultats[o["url"]] = None
 
-    gardees, retrouvees = [], 0
+    gardees, nommees, estimees = [], 0, 0
     for o in offres:
         if o not in de_cabinets:
             gardees.append(o)
             continue
-        client = devines.get(o["url"])
-        if client:
+        res = resultats.get(o["url"])
+        if res:
             o["via_cabinet"] = o.get("entreprise", "")
-            o["entreprise"] = client
+            o["entreprise"] = res["client"]
+            if res["estime"]:
+                o["client_estime"] = True
+                o["client_confiance"] = res["confiance"]
+                estimees += 1
+            else:
+                o.pop("client_estime", None)
+                o.pop("client_confiance", None)
+                nommees += 1
             gardees.append(o)
-            retrouvees += 1
-        # sinon : annonce anonyme -> écartée (comportement historique)
-    log(f"Cabinets : {retrouvees} entreprise(s) cliente(s) retrouvée(s) "
-        f"sur {len(a_analyser)} annonce(s), {len(de_cabinets) - retrouvees} écartée(s) (client anonyme)")
+        # sinon : annonce anonyme non identifiable -> écartée
+    ecartees = len(de_cabinets) - nommees - estimees
+    log(f"Cabinets : {nommees} client(s) nommé(s), {estimees} estimé(s) par IA, "
+        f"{ecartees} écarté(s) (non identifiable) sur {len(a_analyser)} annonce(s)")
     return gardees

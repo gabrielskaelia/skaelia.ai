@@ -22,6 +22,7 @@
         <button class="nav-onglet actif" data-vue="prospection">Prospection</button>
         <button class="nav-onglet" data-vue="contacts">Mes contacts <span class="pastille" id="compteurContacts" hidden>0</span></button>
         <button class="nav-onglet" data-vue="comptes" id="navComptes" hidden>Comptes</button>
+        <button class="nav-onglet" data-vue="credit" id="navCredit" hidden>Crédit</button>
       </nav>
       <div class="entete-droite">
         <button class="chips-connexions" id="chipsConnexions" title="État des connexions — cliquez pour configurer">
@@ -177,6 +178,7 @@
               <strong>💡 Offre de cabinet</strong>
               <p>Certaines annonces sont publiées par un cabinet de recrutement <em>pour le compte d'une autre entreprise</em>.</p>
               <p>Quand cette option est activée, l'IA analyse le texte de l'annonce pour retrouver <strong>l'entreprise cliente réelle</strong> (« pour notre client X », « le groupe Y recrute »…) et te la présente à la place du cabinet.</p>
+              <p>Quand le client n'est <em>pas nommé</em> (« notre client, une société de 160 collaborateurs… »), l'IA propose une <strong>estimation</strong> de l'entreprise probable, signalée par un badge « ≈ estimation IA » : à vérifier avant tout envoi.</p>
             </span>
           </span>
         </div>
@@ -281,6 +283,19 @@
        <div class="table-defilante"><table id="tableComptes"></table></div>
      </div>
      <div class="carte" id="detailCompte" hidden></div>
+   </section>
+
+   <!-- ============ VUE CRÉDIT FULLENRICH (admin) ============ -->
+   <section id="vueCredit" hidden>
+     <div class="zone-recherche">
+       <h1>Crédit FullEnrich</h1>
+       <p class="sous-titre">Les crédits FullEnrich servent à la recherche améliorée et à la récupération des emails / téléphones vérifiés.</p>
+     </div>
+     <div class="carte">
+       <div id="creditContenu" class="credit-bloc">
+         <div class="txt-faible">Chargement du solde…</div>
+       </div>
+     </div>
    </section>
 
   </main>

@@ -427,6 +427,17 @@ def api_admin_mdp():
     return jsonify({"ok": True})
 
 
+@app.get("/api/admin/credits")
+def api_admin_credits():
+    refus = _refus_si_pas_admin()
+    if refus:
+        return refus
+    return jsonify({
+        "configure": enrichment.est_configure(),
+        "solde": enrichment.credits(),
+    })
+
+
 @app.post("/api/admin/supprimer")
 def api_admin_supprimer():
     refus = _refus_si_pas_admin()

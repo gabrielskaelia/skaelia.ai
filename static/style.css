@@ -389,6 +389,15 @@ td a:hover { text-decoration: underline; }
 .badge-neutre { color: var(--texte-2); background: var(--surface-2); border: 1px solid var(--bordure-2); }
 .badge-client { color: #fff; background: var(--accent); }
 .badge-prospect { color: var(--texte-2); background: var(--surface-2); border: 1px solid var(--bordure-2); }
+.badge-estimation {
+  color: var(--attention); background: rgba(138, 109, 59, .12);
+  border: 1px dashed var(--attention); cursor: help;
+}
+.credit-solde { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 8px; }
+.credit-nombre { font-size: 44px; font-weight: 700; color: var(--accent); line-height: 1; }
+.credit-solde.credit-bas .credit-nombre { color: var(--attention); }
+.credit-unite { font-size: 15px; color: var(--texte-2); }
+.credit-alerte { color: var(--attention); font-weight: 600; margin: 6px 0; }
 .cellule-postes { max-width: 380px; }
 .offre-ligne { margin-bottom: 3px; }
 .cellule-postes .offre-lien { display: inline; }

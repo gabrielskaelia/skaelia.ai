@@ -25,6 +25,10 @@
     "client_id": "identifiant client OAuth Google Cloud",
     "client_secret": "secret client OAuth Google Cloud"
   },
+  "anthropic": {
+    "api_key": "clé API Claude (console.anthropic.com) — estimation IA de l'entreprise derrière les annonces de cabinet anonymes ; laisser vide pour désactiver",
+    "modele": "claude-opus-4-8"
+  },
   "roles_cibles": [
     "\"talent acquisition\" OR \"chargé de recrutement\" OR \"responsable recrutement\"",
     "DRH OR RRH OR \"responsable RH\" OR \"ressources humaines\"",

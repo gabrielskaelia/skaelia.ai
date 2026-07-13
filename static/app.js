@@ -392,6 +392,12 @@ function badgeType(type) {
   return "";
 }
 
+function badgeEstimation(o) {
+  if (!o.client_estime) return "";
+  const conf = o.client_confiance || "faible";
+  return ` <span class="badge badge-estimation" title="Entreprise devinée par l'IA à partir de l'annonce anonyme — à vérifier avant tout envoi (confiance ${conf})">≈ estimation IA · ${conf}</span>`;
+}
+
 /* Initiales d'un nom pour l'avatar (2 lettres max). */
 function initiales(nom) {
   const mots = (nom || "").trim().split(/\s+/).filter(Boolean);
@@ -457,7 +463,7 @@ function dessinerTable() {
       "<thead><tr><th>Poste</th><th>Entreprise</th><th>Cabinet</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>
         <td><a href="${echapper(o.url)}" target="_blank" rel="noopener">${echapper(o.titre)}</a></td>
-        <td>${echapper(o.entreprise)}${badgeType(o.type)}</td>
+        <td>${echapper(o.entreprise)}${badgeType(o.type)}${badgeEstimation(o)}</td>
         <td>${o.via_cabinet ? `<span class="badge-cabinet">🏢 ${echapper(o.via_cabinet)}</span>` : '<span class="txt-faible">—</span>'}</td>
         <td>${echapper(o.lieu)}</td>
         <td>${echapper(o.contrat)}</td><td>${echapper(o.salaire)}</td>
@@ -1246,9 +1252,11 @@ function montrerVue(nom) {
   $("#vueProspection").hidden = nom !== "prospection";
   $("#vueContacts").hidden = nom !== "contacts";
   $("#vueComptes").hidden = nom !== "comptes";
+  $("#vueCredit").hidden = nom !== "credit";
   $$(".nav-onglet").forEach((b) => b.classList.toggle("actif", b.dataset.vue === nom));
   if (nom === "contacts") dessinerMesContacts();
   if (nom === "comptes") chargerComptes();
+  if (nom === "credit") chargerCredits();
 }
 
 /* ---------------- Gestion des comptes (administrateur) ---------------- */
@@ -1328,6 +1336,40 @@ function afficherDetailCompte(email) {
     } catch (e) { toast(e.message); }
   });
 }
+/* ---------------- Crédit FullEnrich (administrateur) ---------------- */
+
+async function chargerCredits() {
+  const bloc = $("#creditContenu");
+  bloc.innerHTML = '<div class="txt-faible">Chargement du solde…</div>';
+  let d;
+  try { d = await api("/api/admin/credits"); }
+  catch (e) { bloc.innerHTML = `<div class="txt-faible">${echapper(e.message)}</div>`; return; }
+
+  const recharge = `
+    <div class="modale-actions" style="margin-top:18px">
+      <a class="btn btn-primaire" href="https://app.fullenrich.com/settings/billing" target="_blank" rel="noopener">Recharger des crédits →</a>
+      <button class="btn btn-secondaire" id="btnRafraichirCredit">Rafraîchir</button>
+    </div>
+    <p class="sous-titre" style="margin-top:10px">L'achat de crédits se fait sur le tableau de bord FullEnrich (facturation). Le solde se met à jour ici après la recharge.</p>`;
+
+  if (!d.configure) {
+    bloc.innerHTML = `<div class="txt-faible">FullEnrich n'est pas configuré (clé API absente dans <code>config.json</code>).</div>${recharge}`;
+  } else if (d.solde === null || d.solde === undefined) {
+    bloc.innerHTML = `<div class="txt-faible">Solde indisponible (clé API invalide ou service injoignable).</div>${recharge}`;
+  } else {
+    const bas = d.solde < 100;
+    bloc.innerHTML = `
+      <div class="credit-solde ${bas ? "credit-bas" : ""}">
+        <span class="credit-nombre">${d.solde.toLocaleString("fr-FR")}</span>
+        <span class="credit-unite">crédits restants</span>
+      </div>
+      ${bas ? '<p class="credit-alerte">⚠️ Solde faible — pensez à recharger pour ne pas bloquer la recherche améliorée.</p>' : ""}
+      <p class="sous-titre">Repères : ~1 crédit par email vérifié, ~10 crédits par numéro de mobile, ~0,25 crédit par décideur trouvé (recherche améliorée).</p>
+      ${recharge}`;
+  }
+  $("#btnRafraichirCredit")?.addEventListener("click", chargerCredits);
+}
+
 $$(".nav-onglet").forEach((b) =>
   b.addEventListener("click", () => montrerVue(b.dataset.vue))
 );
@@ -1439,7 +1481,7 @@ $("#obConnecterLinkedin")?.addEventListener("click", () => {
   const nomAffiche = (u.nom || "").trim() || (u.email || "").split("@")[0];
   $("#userNom").textContent = nomAffiche;
   $("#userAvatar").textContent = initiales(nomAffiche);
-  if (u.admin) $("#navComptes").hidden = false;
+  if (u.admin) { $("#navComptes").hidden = false; $("#navCredit").hidden = false; }
   try { await chargerReglages(); } catch (e) { /* réglages indisponibles */ }
 
   // Assistant de bienvenue : UNIQUEMENT au setup du compte (première connexion).

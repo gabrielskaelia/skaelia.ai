@@ -42,6 +42,21 @@ def est_configure():
     return bool(_cle_api())
 
 
+def credits():
+    """Solde de crédits FullEnrich du workspace, ou None si indisponible.
+    (GET /account/credits -> {"balance": N})."""
+    cle = _cle_api()
+    if not cle:
+        return None
+    try:
+        r = requests.get(BASE + "/account/credits",
+                         headers={"Authorization": "Bearer " + cle}, timeout=20)
+        r.raise_for_status()
+        return r.json().get("balance")
+    except Exception:
+        return None
+
+
 def _prenom_nom(nom_complet):
     parts = (nom_complet or "").strip().split()
     if len(parts) >= 2:
