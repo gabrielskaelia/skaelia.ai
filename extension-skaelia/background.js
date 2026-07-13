@@ -32,26 +32,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // L'application demande si une session LinkedIn est ouverte dans ce Chrome.
-  // Méthode fiable : le cookie de session « li_at » n'existe que connecté.
+  // L'application demande si une session LinkedIn est ouverte dans ce Chrome,
+  // et QUI est connecté. Le cookie « li_at » n'existe que connecté ; le nom est
+  // récupéré via l'API interne LinkedIn (voyager), avec le jeton CSRF issu du
+  // cookie JSESSIONID. Si le nom échoue, on renvoie quand même connecte:true.
   if (msg.type === "CHECK_LINKEDIN") {
     (async () => {
+      let connecte = false;
       try {
         const cookie = await chrome.cookies.get(
           { url: "https://www.linkedin.com/", name: "li_at" });
-        if (cookie && cookie.value) { sendResponse({ connecte: true }); return; }
+        connecte = !!(cookie && cookie.value);
       } catch (e) { /* on tente le repli réseau */ }
-      try {
-        const r = await fetch("https://www.linkedin.com/feed/", {
-          credentials: "include", redirect: "follow",
-        });
-        const u = (r.url || "").toLowerCase();
-        const connecte = r.ok && !u.includes("/login") && !u.includes("authwall")
-                              && !u.includes("uas/") && !u.includes("checkpoint");
-        sendResponse({ connecte });
-      } catch (e) {
-        sendResponse({ connecte: false, error: e.message });
+      if (!connecte) {
+        try {
+          const r = await fetch("https://www.linkedin.com/feed/",
+                                { credentials: "include", redirect: "follow" });
+          const u = (r.url || "").toLowerCase();
+          connecte = r.ok && !u.includes("/login") && !u.includes("authwall")
+                          && !u.includes("uas/") && !u.includes("checkpoint");
+        } catch (e) { sendResponse({ connecte: false, error: e.message }); return; }
       }
+      let nom = "";
+      if (connecte) {
+        try {
+          const js = await chrome.cookies.get(
+            { url: "https://www.linkedin.com/", name: "JSESSIONID" });
+          const csrf = js ? js.value.replace(/"/g, "") : "";
+          const rep = await fetch("https://www.linkedin.com/voyager/api/me", {
+            credentials: "include",
+            headers: { "csrf-token": csrf, "accept": "application/json" },
+          });
+          if (rep.ok) {
+            const d = await rep.json();
+            const prof = (d.included || []).find((x) => x.firstName && x.lastName);
+            if (prof) nom = (prof.firstName + " " + prof.lastName).trim();
+          }
+        } catch (e) { /* nom indisponible : on garde connecte:true */ }
+      }
+      sendResponse({ connecte, nom });
     })();
     return true;
   }

@@ -165,10 +165,10 @@ function verifierSessionLinkedin() {
   return new Promise((resolve) => {
     if (!extensionPresente) return resolve({ connecte: false, extension: false, repondu: false });
     const id = "lk" + Date.now() + Math.random().toString(16).slice(2);
-    _attentesExt.set(id, (d) => resolve({ connecte: !!d.connecte, extension: true, repondu: true }));
+    _attentesExt.set(id, (d) => resolve({ connecte: !!d.connecte, nom: d.nom || "", extension: true, repondu: true }));
     window.postMessage({ source: "skaelia-app", type: "CHECK_LINKEDIN", id }, "*");
     setTimeout(() => {
-      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ connecte: false, extension: true, repondu: false }); }
+      if (_attentesExt.has(id)) { _attentesExt.delete(id); resolve({ connecte: false, nom: "", extension: true, repondu: false }); }
     }, 6000);
   });
 }
@@ -474,13 +474,9 @@ async function chargerReglages() {
   emailPersoConfigure = !!r.email_perso_configure;
   emailPersoAdresse = r.email_perso_adresse || "";
   gmailOauth = !!r.gmail_oauth;
-  // Bouton Gmail : connecter, ou déconnecter si déjà relié par Google
-  const btnG = $("#btnConnecterGmail");
-  if (btnG) {
-    btnG.textContent = gmailOauth ? "Déconnecter" : "Connecter son Gmail";
-    btnG.classList.toggle("btn-primaire", !gmailOauth);
-    btnG.classList.toggle("btn-secondaire", gmailOauth);
-  }
+  // Boutons Gmail : « Connecter » si non relié, sinon « Changer de compte »
+  if ($("#btnConnecterGmail")) $("#btnConnecterGmail").hidden = gmailOauth;
+  if ($("#btnChangerGmail")) $("#btnChangerGmail").hidden = !gmailOauth;
   // Configuration SMTP manuelle : proposée seulement sans connexion Google
   $("#zoneGmail").hidden = gmailOauth;
   $("#rSmtpUtilisateur").value = gmailOauth ? "" : (r.email_perso_adresse || "");
@@ -502,17 +498,24 @@ async function majBlocConnexions() {
     return;
   }
   const r = await verifierSessionLinkedin();
+  const btnConn = $("#btnConnecterLinkedin"), btnChg = $("#btnChangerLinkedin");
   if (!r.repondu) {   // extension présente mais trop ancienne
     $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${badge(false, "", "extension à recharger")}</span>`;
     $("#cnxLinkedinAide").textContent =
       "Votre extension Skaelia est trop ancienne. Allez sur chrome://extensions, cliquez sur ↻ (recharger) sur la carte Skaelia, puis rechargez cette page.";
+    if (btnConn) btnConn.hidden = false;
+    if (btnChg) btnChg.hidden = true;
     return;
   }
+  const libelleOk = "connecté ✓" + (r.nom ? " — " + echapper(r.nom) : "");
   $("#cnxLinkedinEtat").outerHTML = `<span id="cnxLinkedinEtat">${
-    badge(r.connecte, "connecté ✓", "session LinkedIn fermée")}</span>`;
+    badge(r.connecte, libelleOk, "session LinkedIn fermée")}</span>`;
   $("#cnxLinkedinAide").textContent = r.connecte
     ? "L'envoi direct des messages LinkedIn est actif."
     : "Ouvrez linkedin.com dans un onglet et connectez-vous, puis revenez ici.";
+  // Connecté → « Changer de compte » ; sinon → « Connecter son LinkedIn »
+  if (btnConn) btnConn.hidden = r.connecte;
+  if (btnChg) btnChg.hidden = !r.connecte;
 }
 
 $("#btnReglages").addEventListener("click", async () => {
@@ -536,17 +539,20 @@ $("#btnMontrerMdp")?.addEventListener("click", () => basculerZone("#zoneMdp"));
 /* « Connecter son LinkedIn » : ouvre la page de connexion LinkedIn puis
    surveille la session via l'extension — le badge passe au vert tout seul. */
 let _surveilLinkedin = null;
-$("#btnConnecterLinkedin")?.addEventListener("click", () => {
+
+/* Ouvre LinkedIn (login ou changement de compte) et surveille la session :
+   quand un compte est détecté, le badge et le nom se mettent à jour seuls. */
+function surveillerConnexionLinkedin(url) {
   if (!extensionPresente) {
     $("#cnxLinkedinAide").textContent =
-      "Il faut d'abord installer l'extension Chrome Skaelia (dossier extension-skaelia, chrome://extensions), puis recharger cette page.";
+      "Il faut d'abord installer l'extension Chrome Skaelia (chrome://extensions), puis recharger cette page.";
     $("#zoneLinkedin").hidden = false;
     return;
   }
-  window.open("https://www.linkedin.com/login", "_blank", "noopener");
-  toast("Connecte-toi sur LinkedIn — je surveille…");
+  window.open(url, "_blank", "noopener");
+  toast("Connecte-toi à LinkedIn avec le compte voulu — je surveille…");
   if (_surveilLinkedin) clearInterval(_surveilLinkedin);
-  let essais = 0;
+  let essais = 0, etatDepart = sessionLinkedinOk;
   _surveilLinkedin = setInterval(async () => {
     essais += 1;
     const r = await verifierSessionLinkedin();
@@ -554,26 +560,28 @@ $("#btnConnecterLinkedin")?.addEventListener("click", () => {
       clearInterval(_surveilLinkedin); _surveilLinkedin = null;
       sessionLinkedinOk = true;
       majChipsConnexions(); majBlocConnexions();
-      toast("LinkedIn connecté ✓");
+      toast(r.nom ? `LinkedIn connecté ✓ — ${r.nom}` : "LinkedIn connecté ✓");
     } else if (essais > 40) {           // ~2 minutes puis on arrête
       clearInterval(_surveilLinkedin); _surveilLinkedin = null;
     }
   }, 3000);
+}
+
+$("#btnConnecterLinkedin")?.addEventListener("click", () =>
+  surveillerConnexionLinkedin("https://www.linkedin.com/login"));
+
+$("#btnChangerLinkedin")?.addEventListener("click", () => {
+  if (!confirm("Pour changer de compte, tu vas être déconnecté de LinkedIn dans ce navigateur, "
+             + "puis tu te reconnecteras avec le compte voulu. Continuer ?")) return;
+  // Déconnexion LinkedIn puis page de connexion, et on surveille la nouvelle session
+  surveillerConnexionLinkedin("https://www.linkedin.com/m/logout/");
 });
 
-/* « Connecter son Gmail » : autorisation Google (OAuth) en un clic.
-   Si déjà connecté, le bouton sert à déconnecter. */
+/* Gmail : « Connecter » et « Changer de compte » lancent la même autorisation
+   Google (le sélecteur de compte est toujours affiché). */
 let gmailOauth = false;
-$("#btnConnecterGmail")?.addEventListener("click", async () => {
-  if (gmailOauth) {
-    if (!confirm("Déconnecter ce compte Gmail ? Les emails ne partiront plus directement.")) return;
-    await post("/api/reglages", { gmail_oauth: false });
-    await chargerReglages(); majBlocConnexions();
-    toast("Gmail déconnecté");
-    return;
-  }
-  window.location.href = "/connexion/gmail";
-});
+$("#btnConnecterGmail")?.addEventListener("click", () => { window.location.href = "/connexion/gmail"; });
+$("#btnChangerGmail")?.addEventListener("click", () => { window.location.href = "/connexion/gmail"; });
 
 $("#btnSauverGmail")?.addEventListener("click", async () => {
   if (!$("#rSmtpUtilisateur").value.trim()) { toast("Indique ton adresse Gmail."); return; }
@@ -1148,7 +1156,7 @@ async function majEtatObLinkedin() {
       "Ton extension Skaelia est trop ancienne : va sur chrome://extensions, clique sur ↻ sur la carte Skaelia, puis reviens. (Tu peux aussi terminer et le faire plus tard.)";
     return;
   }
-  el.textContent = r.connecte ? "connecté ✓" : "non connecté";
+  el.textContent = r.connecte ? ("connecté ✓" + (r.nom ? " — " + r.nom : "")) : "non connecté";
   el.className = "badge " + (r.connecte ? "badge-ok" : "badge-neutre");
 }
 

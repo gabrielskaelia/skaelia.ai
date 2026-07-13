@@ -345,7 +345,8 @@ def gmail_connexion():
         "scope": "https://www.googleapis.com/auth/gmail.send openid email",
         "state": etat,
         "access_type": "offline",   # pour obtenir un refresh_token durable
-        "prompt": "consent",
+        # Toujours proposer le choix du compte (permet d'en changer)
+        "prompt": "select_account consent",
     }
     return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + _urlencode(params))
 

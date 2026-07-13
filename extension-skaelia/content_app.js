@@ -33,6 +33,7 @@
         window.postMessage({
           source: "skaelia-ext", type: "LINKEDIN_STATUS",
           id: data.id, connecte: !!(rep && rep.connecte),
+          nom: (rep && rep.nom) || "",
         }, "*");
       });
     }
