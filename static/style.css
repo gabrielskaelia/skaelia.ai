@@ -57,8 +57,7 @@ h2 { font-size: 18px; font-weight: 650; }
   background: var(--surface); border: 1px solid var(--bordure);
   border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
-.entete-gauche { display: flex; align-items: center; gap: 30px; }
-.logo { display: flex; align-items: center; gap: 10px; }
+.logo { display: flex; align-items: center; gap: 10px; flex: 1; }
 .logo-marque {
   width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
   color: #fff; font-weight: 800; font-size: 16px;
@@ -68,7 +67,7 @@ h2 { font-size: 18px; font-weight: 650; }
 .logo-img { width: 26px; height: 26px; display: block; }
 .logo-img-grande { width: 34px; height: 34px; }
 .logo-texte-grand { font-size: 22px; }
-.entete-droite { display: flex; align-items: center; gap: 12px; }
+.entete-droite { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 1; }
 .utilisateur-email { font-size: 12px; color: var(--texte-2); }
 
 /* Bloc utilisateur (avatar + nom + email) */
@@ -91,8 +90,8 @@ h2 { font-size: 18px; font-weight: 650; }
 .btn-sombre { background: var(--sombre); color: #fff; border: none; }
 .btn-sombre:hover { background: var(--sombre-hover); }
 
-/* Navigation principale : indicateur souligné */
-.nav-principale { display: flex; gap: 22px; }
+/* Navigation principale : centrée, indicateur souligné */
+.nav-principale { display: flex; gap: 26px; flex: 0 0 auto; justify-content: center; }
 .nav-onglet {
   font-family: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;
   background: none; border: none; border-bottom: 2px solid transparent;
@@ -521,7 +520,9 @@ td a:hover { text-decoration: underline; }
 /* ---- Contacts (résultats) : mise en colonnes avec avatar ---- */
 .contacts-entete, .contact-carte {
   display: grid;
-  grid-template-columns: minmax(0,1.5fr) minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,2fr) auto auto auto;
+  /* Colonnes d'action en largeur FIXE : sinon l'en-tête (vide) et les cartes
+     (Profil/Ajouter/✕) n'auraient pas les mêmes largeurs → désalignement. */
+  grid-template-columns: minmax(0,1.5fr) minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,2fr) 78px 104px 30px;
   gap: 16px;
 }
 .contacts-entete {
