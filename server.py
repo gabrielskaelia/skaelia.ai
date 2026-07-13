@@ -561,8 +561,12 @@ def lancer():
         donnees = request.get_json(force=True)
         # Poste et secteur sont tous deux facultatifs, mais il en faut au moins un
         # (le secteur sert de mot-clé de recherche à défaut de poste précis).
+        # Exception : une recherche « Clients » seule peut se lancer sans mot-clé
+        # (elle interroge les offres de chaque client Nicoka, tous secteurs).
         poste = (donnees.get("poste") or "").strip() or (donnees.get("secteur") or "").strip()
-        if not poste:
+        types_dem = [t for t in (donnees.get("types_entreprise") or []) if t in ("prospect", "client")]
+        mode_clients = (not poste) and types_dem == ["client"]
+        if not poste and not mode_clients:
             return jsonify({"erreur": "Indiquez un poste ou un secteur"}), 400
 
         config = _config()
@@ -597,8 +601,11 @@ def lancer():
             params["recherche_amelioree"] = True
         if donnees.get("inclure_cabinets"):
             params["inclure_cabinets"] = True
+        if mode_clients:
+            params["mode_clients"] = True
+        titre = (poste or "Offres de nos clients") + (f" — {params['lieu']}" if params["lieu"] else "")
         job.update({"etat": "en_cours", "logs": [], "resultats": None,
-                    "erreur": "", "titre": poste + (f" — {params['lieu']}" if params["lieu"] else "")})
+                    "erreur": "", "titre": titre})
         threading.Thread(target=_executer_en_fond,
                          args=(session["email"], params), daemon=True).start()
     return jsonify({"ok": True})

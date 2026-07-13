@@ -235,8 +235,10 @@ function optionsRecherche() {
 async function lancerRecherche() {
   const secteur = $("#fSecteur")?.value || "";
   const motsCles = ($("#fMotsCles")?.value || "").trim();
-  if (!secteur && !motsCles) {
-    toast("Indique un poste / des mots-clés, ou choisis un secteur.");
+  const typesSel = $$("#fTypes input:checked").map((c) => c.value);
+  const modeClients = typesSel.length === 1 && typesSel[0] === "client";
+  if (!secteur && !motsCles && !modeClients) {
+    toast("Indique un poste / des mots-clés, ou choisis un secteur (sauf recherche Clients).");
     $("#fMotsCles")?.focus(); return;
   }
   const nbContacts = parseInt($("#fNbContacts")?.value, 10);
@@ -263,7 +265,7 @@ async function lancerRecherche() {
   $("#vueResultats").hidden = true;
   const regionLabel = $("#fRegion")?.selectedOptions?.[0]?.textContent?.trim() || "";
   const lieu = regionLabel && regionLabel !== "Toute la France" ? regionLabel : "";
-  $("#suiviTitre").textContent = `Recherche : ${motsCles || secteur}${lieu ? " — " + lieu : ""}`;
+  $("#suiviTitre").textContent = `Recherche : ${motsCles || secteur || "Offres de nos clients"}${lieu ? " — " + lieu : ""}`;
   $("#blocSuivi").hidden = false;
   $("#journal").innerHTML = "";
   $("#suiviSpinner").style.display = "";
@@ -296,6 +298,13 @@ async function interrogerStatut() {
 
 async function afficherResultats(statut) {
   resultats = await api("/api/resultats");
+  // Ajout automatique de tous les contacts trouvés (plus d'ajout un par un).
+  if (resultats.contacts && resultats.contacts.length) {
+    const aAjouter = resultats.contacts.filter((c) => !clesSauvegardees.has(cleContact(c)));
+    if (aAjouter.length) {
+      try { await ajouterContacts(aAjouter); } catch (e) { /* le toast d'erreur suffit */ }
+    }
+  }
   const s = statut.synthese;
   $("#blocSuivi").hidden = true;
   $("#statsResultats").innerHTML = `

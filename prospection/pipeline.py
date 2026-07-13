@@ -183,47 +183,69 @@ def executer(params, log=print):
     {offres, entreprises, contacts, fichier, nb_nouvelles}."""
     p = {**DEFAUTS, **{k: v for k, v in params.items() if v is not None}}
     poste = (p.get("poste") or "").strip()
-    if not poste:
+    mode_clients = bool(p.get("mode_clients"))
+    if not poste and not mode_clients:
         raise ValueError("Le poste recherché est obligatoire.")
     lieu = (p.get("lieu") or "").strip()
     sources = [s.lower() for s in p["sources"]] or ["hellowork", "indeed"]
 
     # --- 1. Collecte (sources interrogées en parallèle) --------------------
     pages = int(p["pages"])
-
-    def _hellowork():
-        return jobs_hellowork.rechercher_offres(poste, lieu, pages=pages)
-
-    def _indeed():
-        return jobs_indeed.rechercher_offres(
-            poste, lieu, pages=pages,
-            anciennete_jours=int(p["anciennete_jours"]) or None)
-
-    def _linkedin():
-        return jobs_linkedin.rechercher_offres(poste, lieu, pages=pages)
-
-    def _wttj():
-        from . import jobs_wttj
-        return jobs_wttj.rechercher_offres(poste, lieu, pages=pages,
-                                           rayon_km=int(p["rayon_km"]))
-
-    collecteurs = {"hellowork": _hellowork, "indeed": _indeed,
-                   "linkedin": _linkedin, "wttj": _wttj}
     noms = {"hellowork": "HelloWork", "indeed": "Indeed",
             "linkedin": "LinkedIn", "wttj": "Welcome to the Jungle"}
     a_lancer = [s for s in ("hellowork", "indeed", "linkedin", "wttj") if s in sources]
 
-    log(f"Collecte de {len(a_lancer)} source(s) en parallèle : « {poste} » ({lieu or 'toute la France'})…")
+    def _collecter(terme, nb_pages):
+        """Interroge une source pour un terme de recherche donné."""
+        def _hellowork():
+            return jobs_hellowork.rechercher_offres(terme, lieu, pages=nb_pages)
+
+        def _indeed():
+            return jobs_indeed.rechercher_offres(
+                terme, lieu, pages=nb_pages,
+                anciennete_jours=int(p["anciennete_jours"]) or None)
+
+        def _linkedin():
+            return jobs_linkedin.rechercher_offres(terme, lieu, pages=nb_pages)
+
+        def _wttj():
+            from . import jobs_wttj
+            return jobs_wttj.rechercher_offres(terme, lieu, pages=nb_pages,
+                                               rayon_km=int(p["rayon_km"]))
+        return {"hellowork": _hellowork, "indeed": _indeed,
+                "linkedin": _linkedin, "wttj": _wttj}
+
     offres = []
-    with ThreadPoolExecutor(max_workers=max(1, len(a_lancer))) as ex:
-        futurs = {ex.submit(collecteurs[s]): s for s in a_lancer}
-        for f, s in futurs.items():
-            try:
-                trouvees = f.result()
-                log(f"→ {len(trouvees)} offres {noms[s]}")
-                offres += trouvees
-            except Exception as e:
-                log(f"→ {noms[s]} indisponible : {e}")
+    if mode_clients:
+        # Recherche « Offres de nos clients » : on interroge chaque client Nicoka
+        # par son nom, tous secteurs confondus, pour voir lesquels recrutent.
+        clients = [c for c in (p.get("clients") or []) if c]
+        log(f"Recherche des offres de nos {len(clients)} clients (tous secteurs)…")
+        taches = [(cl, s) for cl in clients for s in a_lancer]
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futurs = {ex.submit(_collecter(cl, 1)[s]): (cl, s) for cl, s in taches}
+            for f, (cl, s) in futurs.items():
+                try:
+                    offres += f.result()
+                except Exception:
+                    pass
+        log(f"→ {len(offres)} offres collectées auprès des clients")
+    else:
+        log(f"Collecte de {len(a_lancer)} source(s) en parallèle : « {poste} » ({lieu or 'toute la France'})…")
+        collecteurs = _collecter(poste, pages)
+        with ThreadPoolExecutor(max_workers=max(1, len(a_lancer))) as ex:
+            futurs = {ex.submit(collecteurs[s]): s for s in a_lancer}
+            for f, s in futurs.items():
+                try:
+                    trouvees = f.result()
+                    log(f"→ {len(trouvees)} offres {noms[s]}")
+                    offres += trouvees
+                except Exception as e:
+                    log(f"→ {noms[s]} indisponible : {e}")
+
+    # Libellé de recherche pour la signature / l'historique (poste vide en mode clients)
+    if not poste:
+        poste = "offres de nos clients"
 
     # Dates de publication : on fige le relatif en date absolue AU MOMENT de la
     # collecte, pour que l'historique reste cohérent dans le temps.
