@@ -698,6 +698,7 @@ def api_ajouter_contacts():
                 "recent": st.get("recent", False),
                 "jours": st.get("jours_depuis_action"),
                 "dernier_contact": st.get("last_action_on", ""),
+                "dernier_echange": st.get("dernier_echange") or {},
                 "url_nicoka": st.get("url_nicoka", ""),
             }
             if st.get("recent"):
@@ -761,6 +762,7 @@ def api_verifier_nicoka_tous():
         return {"verifie": True, "en_base": st.get("en_base", False),
                 "recent": st.get("recent", False), "jours": st.get("jours_depuis_action"),
                 "dernier_contact": st.get("last_action_on", ""),
+                "dernier_echange": st.get("dernier_echange") or {},
                 "url_nicoka": st.get("url_nicoka", "")}
 
     liste = contacts_store.maj_nicoka_tous(session["email"], calcul)

@@ -88,9 +88,36 @@ def _simplifier(c):
         "poste": (c.get("jobtitle") or c.get("headline") or "").strip(),
         "customerid": c.get("customerid"),
         "last_action_on": c.get("last_action_on") or "",
+        # Dates par TYPE d'interaction, pour reconstituer le « dernier échange »
+        "last_email_sent_on": c.get("last_email_sent_on") or "",
+        "last_email_received_on": c.get("last_email_received_on") or "",
+        "last_phone_call_on": c.get("last_phone_call_on") or "",
+        "last_meeting_on": c.get("last_meeting_on") or "",
+        "last_note_on": c.get("last_note_on") or "",
         "linkedin": _linkedin_depuis(c.get("social_networks")),
         "url_nicoka": f"{_config().get('base_url','').replace('/api','')}/#/contacts/{c.get('id')}",
     }
+
+
+# Libellé lisible du dernier échange, dans l'ordre chronologique inverse.
+_TYPES_ECHANGE = [
+    ("email envoyé", "last_email_sent_on"),
+    ("email reçu", "last_email_received_on"),
+    ("appel", "last_phone_call_on"),
+    ("réunion", "last_meeting_on"),
+    ("note", "last_note_on"),
+]
+
+
+def dernier_echange(contact):
+    """Type + date de la dernière interaction connue avec un contact Nicoka.
+    Renvoie {"type": "email envoyé"|…, "date": "AAAA-MM-JJ …"} ou {} si aucune."""
+    candidats = [(lib, contact.get(champ)) for lib, champ in _TYPES_ECHANGE if contact.get(champ)]
+    if not candidats:
+        d = contact.get("last_action_on")
+        return {"type": "", "date": d} if d else {}
+    lib, date = max(candidats, key=lambda x: x[1])
+    return {"type": lib, "date": date}
 
 
 def synchroniser(log=lambda m: None):
@@ -424,9 +451,11 @@ def statut_pour(email="", nom="", cache=None):
     jours = _jours_depuis(contact["last_action_on"]) if contact else None
     seuil = cache.get("jours_prospection", 50)
     recent = jours is not None and jours < seuil
+    echange = dernier_echange(contact) if contact else {}
     return {"en_base": True, "jours_depuis_action": jours, "recent": recent,
             "connu": True, "id": cid,
             "last_action_on": contact["last_action_on"] if contact else "",
+            "dernier_echange": echange,
             "url_nicoka": contact["url_nicoka"] if contact else ""}
 
 

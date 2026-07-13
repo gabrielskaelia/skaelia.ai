@@ -715,6 +715,17 @@ function badgeNicoka(c) {
     : `<span class="badge ${cls}">${txt}</span>`;
 }
 
+/* Dernier échange Nicoka (type + date), façon Nicoka. */
+function echangeNicoka(c) {
+  const e = (c.nicoka || {}).dernier_echange || {};
+  if (!e.type && !e.date) return '<span class="txt-faible">—</span>';
+  const d = dateFr(e.date);
+  const libelle = e.type || "contact";
+  return `<span title="Dernière interaction dans Nicoka">${echapper(libelle)}${d && d !== "—" ? " · " + d : ""}</span>`;
+}
+
+let modeSelection = false;   // les cases n'apparaissent qu'en mode sélection
+
 function dessinerMesContacts() {
   const table = $("#tableMesContacts");
   const vide = $("#contactsVide");
@@ -729,8 +740,9 @@ function dessinerMesContacts() {
   $("#carteMesContacts").hidden = false;
   actions.hidden = false;
   vide.hidden = true;
+  const colSel = modeSelection ? '<th><input type="checkbox" id="mcToutSel" title="Tout sélectionner"></th>' : "";
   table.innerHTML =
-    `<thead><tr><th><input type="checkbox" id="mcToutSel" title="Tout sélectionner"></th><th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>` +
+    `<thead><tr>${colSel}<th>Contact</th><th>Poste</th><th>Entreprise</th><th>Nicoka</th><th>Dernier échange</th><th>Offre publiée</th><th>LinkedIn</th><th>Email</th><th>Téléphone</th><th></th><th></th></tr></thead><tbody>` +
     mesContacts.map((c) => {
       const cle = cleContact(c);
       const offres = c.offres || [];
@@ -742,12 +754,14 @@ function dessinerMesContacts() {
         : '<span class="txt-faible">—</span>';
       const cellEmail = c.email ? echapper(c.email) : '<span class="txt-faible">—</span>';
       const cellTel = c.telephone ? echapper(c.telephone) : '<span class="txt-faible">—</span>';
+      const cellSel = modeSelection ? `<td><input type="checkbox" class="mc-sel" data-cle="${echapper(cle)}"></td>` : "";
       return `<tr>
-        <td><input type="checkbox" class="mc-sel" data-cle="${echapper(cle)}"></td>
+        ${cellSel}
         <td><strong>${echapper(c.nom)}</strong></td>
         <td>${echapper(c.poste)}</td>
         <td>${echapper(c.entreprise)}</td>
         <td>${badgeNicoka(c)}</td>
+        <td>${echangeNicoka(c)}</td>
         <td class="cellule-offre">${lienOffre}</td>
         <td>${lienLinkedin}</td>
         <td>${cellEmail}</td>
@@ -764,10 +778,18 @@ function dessinerMesContacts() {
   table.querySelectorAll(".btn-suppr").forEach((b) =>
     b.addEventListener("click", () => supprimerContact(b.dataset.cle))
   );
-  // Case « tout sélectionner »
+  // Case « tout sélectionner » + compteur
   $("#mcToutSel")?.addEventListener("change", (e) => {
     table.querySelectorAll(".mc-sel").forEach((chk) => { chk.checked = e.target.checked; });
+    majInfoSelection();
   });
+  table.querySelectorAll(".mc-sel").forEach((chk) =>
+    chk.addEventListener("change", majInfoSelection));
+}
+
+function majInfoSelection() {
+  const n = document.querySelectorAll("#tableMesContacts .mc-sel:checked").length;
+  if ($("#infoSelection")) $("#infoSelection").textContent = n ? `${n} sélectionné${n > 1 ? "s" : ""}` : "";
 }
 
 /* Contacts cochés dans le tableau « Mes contacts ». */
@@ -1020,7 +1042,36 @@ $("#btnToutProspecter")?.addEventListener("click", () => {
 
 // « Prospecter la sélection » : seulement les contacts cochés.
 $("#btnProspecterSelection")?.addEventListener("click", () => {
-  ouvrirModaleProspection(contactsSelectionnes());
+  const sel = contactsSelectionnes();
+  if (!sel.length) { toast("Coche au moins un contact."); return; }
+  ouvrirModaleProspection(sel);
+});
+
+// Mode sélection : les cases n'apparaissent qu'après clic sur « Sélection ».
+function activerModeSelection(actif) {
+  modeSelection = actif;
+  $("#actionsNormal").hidden = actif;
+  $("#actionsSelection").hidden = !actif;
+  if ($("#infoSelection")) $("#infoSelection").textContent = "";
+  dessinerMesContacts();
+}
+$("#btnSelection")?.addEventListener("click", () => activerModeSelection(true));
+$("#btnAnnulerSelection")?.addEventListener("click", () => activerModeSelection(false));
+
+// « Supprimer la sélection » : retire les contacts cochés.
+$("#btnSupprimerSelection")?.addEventListener("click", async () => {
+  const sel = contactsSelectionnes();
+  if (!sel.length) { toast("Coche au moins un contact."); return; }
+  if (!confirm(`Supprimer ${sel.length} contact${sel.length > 1 ? "s" : ""} de ta liste ?`)) return;
+  try {
+    const cles = sel.map(cleContact);
+    const r = await post("/api/mes-contacts/supprimer", { cles });
+    mesContacts = r.contacts;
+    clesSauvegardees = new Set(mesContacts.map(cleContact));
+    majCompteurContacts();
+    activerModeSelection(false);
+    toast("Contacts supprimés ✓");
+  } catch (e) { toast(e.message); }
 });
 
 $("#btnFermerProspecter").addEventListener("click", () => { $("#voileProspecter").hidden = true; });
