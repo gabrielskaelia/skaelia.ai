@@ -392,41 +392,50 @@ function badgeType(type) {
   return "";
 }
 
+/* Initiales d'un nom pour l'avatar (2 lettres max). */
+function initiales(nom) {
+  const mots = (nom || "").trim().split(/\s+/).filter(Boolean);
+  if (!mots.length) return "?";
+  return (mots[0][0] + (mots.length > 1 ? mots[mots.length - 1][0] : "")).toUpperCase();
+}
+
 function dessinerTable() {
   const table = $("#tableResultats");
+  const liste = $("#listeContacts");
   if (!resultats) return;
 
   if (tableActive === "contacts") {
     $("#barreContacts").hidden = false;
+    table.hidden = true; liste.hidden = false;
     if (!resultats.contacts.length) {
       $("#barreContacts").hidden = true;
-      table.innerHTML = "<tbody><tr><td style='padding:24px'>Aucun contact dans cette recherche.</td></tr></tbody>";
+      liste.innerHTML = "<div style='padding:24px; color:var(--texte-2)'>Aucun contact dans cette recherche.</div>";
       return;
     }
-    const visibles = resultats.contacts.map((c, i) => ({ c, i }));
-    table.innerHTML =
-      "<thead><tr><th>Contact</th><th>Poste du contact</th><th>Entreprise</th><th>Recrute actuellement</th><th></th><th></th></tr></thead><tbody>" +
-      visibles.map(({ c, i }) => {
-        const dansCarnet = clesSauvegardees.has(cleContact(c));
-        const profil = c.url_linkedin
-          ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
-          : "";
-        const ajout = dansCarnet
-          ? '<span class="badge badge-ok">ajouté ✓</span>'
-          : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
-        return `<tr>
-        <td><strong>${echapper(c.nom)}</strong></td>
-        <td>${echapper(c.poste)}</td>
-        <td>${echapper(c.entreprise)}${badgeType(c.type)}</td>
-        <td class="cellule-postes">${offresDeLEntreprise(c.entreprise)}</td>
-        <td><div class="cellule-actions">${profil}${ajout}</div></td>
-        <td><button class="btn-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button></td></tr>`;
-      }).join("") +
-      "</tbody>";
-    table.querySelectorAll(".btn-ajout").forEach((b) =>
+    liste.innerHTML = resultats.contacts.map((c, i) => {
+      const dansCarnet = clesSauvegardees.has(cleContact(c));
+      const profil = c.url_linkedin
+        ? `<a class="lien-profil" href="${echapper(c.url_linkedin)}" target="_blank" rel="noopener">Profil ↗</a>`
+        : "";
+      const ajout = dansCarnet
+        ? '<span class="badge badge-ok">ajouté ✓</span>'
+        : `<button class="btn-ajout" data-idx="${i}">+ Ajouter</button>`;
+      return `<div class="contact-carte">
+        <span class="contact-avatar">${echapper(initiales(c.nom))}</span>
+        <div class="contact-ident">
+          <div class="contact-nom">${echapper(c.nom)}</div>
+          <div class="contact-role">${echapper(c.poste)}</div>
+          <div class="contact-entreprise">${echapper(c.entreprise)}${badgeType(c.type)}</div>
+        </div>
+        <div class="contact-offres">${offresDeLEntreprise(c.entreprise)}</div>
+        <div class="contact-actions">${profil}${ajout}</div>
+        <button class="btn-suppr contact-suppr" data-suppr="${i}" title="Retirer ce contact">✕</button>
+      </div>`;
+    }).join("");
+    liste.querySelectorAll(".btn-ajout").forEach((b) =>
       b.addEventListener("click", () => ajouterContacts([resultats.contacts[+b.dataset.idx]]))
     );
-    table.querySelectorAll(".btn-suppr").forEach((b) =>
+    liste.querySelectorAll(".btn-suppr").forEach((b) =>
       b.addEventListener("click", () => {
         resultats.contacts.splice(+b.dataset.suppr, 1);
         dessinerTable();
@@ -434,6 +443,7 @@ function dessinerTable() {
     );
   } else {
     $("#barreContacts").hidden = true;
+    liste.hidden = true; table.hidden = false;
     table.innerHTML =
       "<thead><tr><th>Poste</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Salaire</th><th>Publiée</th><th>Source</th></tr></thead><tbody>" +
       resultats.offres.map((o) => `<tr>

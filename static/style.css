@@ -362,6 +362,18 @@ td a:hover { text-decoration: underline; }
 .cellule-postes .offre-lien { display: inline; }
 .offre-date { font-size: 12px; color: var(--texte-2); margin-left: 7px; white-space: nowrap; }
 
+/* Offres dans les cartes contacts : sobres, une ligne, non soulignées */
+.contact-offres .offre-ligne {
+  margin: 0; display: flex; align-items: baseline; gap: 7px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.contact-offres .offre-lien {
+  color: #3D4658; font-size: 12.5px; text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.contact-offres .offre-lien:hover { color: var(--accent); }
+.contact-offres .offre-date { margin-left: 0; }
+
 /* ---------- Pages d'authentification ---------- */
 .page-auth {
   min-height: 100vh; display: flex; flex-direction: column;
@@ -482,6 +494,27 @@ td a:hover { text-decoration: underline; }
 .ob-etape { display: flex; flex-direction: column; gap: 10px; }
 .ob-etape .reg-ligne { margin-top: 4px; }
 
-/* ---- Colonne actions contacts : Profil au-dessus de Ajouter ---- */
-.cellule-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
-.cellule-actions .lien-profil { font-weight: 600; font-size: 12.5px; color: var(--accent); }
+/* ---- Contacts (résultats) : cartes avec avatar ---- */
+.contact-carte {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 16px 22px; border-top: 1px solid #F4F3EE;
+}
+#listeContacts > .contact-carte:first-child { border-top: none; }
+.contact-avatar {
+  width: 40px; height: 40px; border-radius: 999px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-doux); color: var(--accent);
+  font-weight: 700; font-size: 14px;
+}
+.contact-ident { width: 190px; flex: 0 0 auto; }
+.contact-nom { font-weight: 700; color: var(--texte); font-size: 13.5px; }
+.contact-role { color: #8A8A84; font-size: 12.5px; margin-top: 2px; }
+.contact-entreprise { color: #9A9A95; font-size: 12.5px; margin-top: 2px; }
+.contact-offres {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+}
+.contact-actions {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto;
+}
+.contact-actions .lien-profil { font-weight: 600; font-size: 12.5px; color: var(--accent); }
+.contact-suppr { flex: 0 0 auto; align-self: flex-start; }
