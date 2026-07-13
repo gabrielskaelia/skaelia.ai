@@ -32,9 +32,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // L'application demande si une session LinkedIn est ouverte dans ce Chrome
+  // L'application demande si une session LinkedIn est ouverte dans ce Chrome.
+  // Méthode fiable : le cookie de session « li_at » n'existe que connecté.
   if (msg.type === "CHECK_LINKEDIN") {
     (async () => {
+      try {
+        const cookie = await chrome.cookies.get(
+          { url: "https://www.linkedin.com/", name: "li_at" });
+        if (cookie && cookie.value) { sendResponse({ connecte: true }); return; }
+      } catch (e) { /* on tente le repli réseau */ }
       try {
         const r = await fetch("https://www.linkedin.com/feed/", {
           credentials: "include", redirect: "follow",
