@@ -49,40 +49,62 @@ h2 { font-size: 18px; font-weight: 650; }
 .btn-discret:hover { color: var(--texte); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-/* ---------- Header ---------- */
-.entete { background: var(--surface); border-bottom: 1px solid var(--bordure); }
+/* ---------- Header (barre flottante épurée) ---------- */
+.entete { background: var(--fond); padding: 16px 24px 0; }
 .entete-interieur {
-  max-width: 1060px; margin: 0 auto; padding: 13px 24px;
+  max-width: 1452px; margin: 0 auto; padding: 11px 20px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--surface); border: 1px solid var(--bordure);
+  border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
-.logo { display: flex; align-items: center; gap: 8px; }
+.entete-gauche { display: flex; align-items: center; gap: 30px; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-marque {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
+  color: #fff; font-weight: 800; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-texte { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--texte); }
 .logo-img { width: 26px; height: 26px; display: block; }
 .logo-img-grande { width: 34px; height: 34px; }
-.logo-texte { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
 .logo-texte-grand { font-size: 22px; }
-.logo-ai {
-  background: #2263FF; color: #fff; font-size: 11px; font-weight: 800;
-  padding: 3px 7px; border-radius: 6px; line-height: 1;
-}
-.logo-sous { font-size: 12.5px; color: var(--texte-2); border-left: 1px solid var(--bordure); padding-left: 10px; margin-left: 4px; }
-.entete-droite { display: flex; align-items: center; gap: 8px; }
-.utilisateur-email { font-size: 13.5px; color: var(--texte-2); }
+.entete-droite { display: flex; align-items: center; gap: 12px; }
+.utilisateur-email { font-size: 12px; color: var(--texte-2); }
 
-/* Navigation principale (Prospection / Mes contacts) */
-.nav-principale { display: flex; gap: 4px; margin-left: 8px; }
+/* Bloc utilisateur (avatar + nom + email) */
+.user-bloc { display: flex; align-items: center; gap: 9px; }
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 999px; flex: 0 0 auto;
+  background: var(--accent-doux); color: var(--accent); font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+}
+.user-info { display: flex; flex-direction: column; line-height: 1.15; }
+.user-nom { font-weight: 700; font-size: 13.5px; color: var(--texte); }
+
+/* Bouton icône (réglages) et bouton foncé (déconnexion) */
+.btn-icone {
+  width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--bordure); background: var(--surface); color: var(--texte-2);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 16px; transition: all .15s;
+}
+.btn-icone:hover { border-color: var(--accent); color: var(--texte); }
+.btn-sombre { background: var(--sombre); color: #fff; border: none; }
+.btn-sombre:hover { background: var(--sombre-hover); }
+
+/* Navigation principale : indicateur souligné */
+.nav-principale { display: flex; gap: 22px; }
 .nav-onglet {
   font-family: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;
-  background: none; border: none; color: var(--texte-2);
-  padding: 8px 14px; border-radius: 8px; transition: background .15s, color .15s;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--texte-2); padding: 6px 1px; margin-bottom: -2px; transition: color .15s, border-color .15s;
   display: inline-flex; align-items: center; gap: 7px;
 }
 .nav-onglet:hover { color: var(--texte); }
-.nav-onglet.actif { background: var(--sombre); color: #fff; }
+.nav-onglet.actif { color: var(--texte); border-bottom-color: var(--accent); }
 .pastille {
   font-size: 11.5px; font-weight: 700; min-width: 18px; text-align: center;
-  background: var(--surface-2); color: var(--texte); border-radius: 999px; padding: 1px 6px;
+  background: var(--accent-doux); color: var(--accent); border-radius: 999px; padding: 1px 6px;
 }
-.nav-onglet.actif .pastille { background: rgba(255,255,255,.25); color: #fff; }
 
 /* Barre au-dessus du tableau contacts */
 .barre-table { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
@@ -342,6 +364,8 @@ tbody td { padding: 10px 12px; border-bottom: 1px solid var(--bordure-2); vertic
 tbody tr:hover { background: var(--surface-2); }
 td a { color: var(--accent); font-weight: 600; text-decoration: none; }
 td a:hover { text-decoration: underline; }
+/* Colonne Source (offres) : pas de retour à la ligne (ex. « HelloWork ») */
+#tableResultats td:last-child { white-space: nowrap; }
 .badge {
   display: inline-block; font-size: 11.5px; font-weight: 700;
   padding: 2px 8px; border-radius: 5px; white-space: nowrap;
@@ -371,7 +395,7 @@ td a:hover { text-decoration: underline; }
   color: #3D4658; font-size: 12.5px; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis;
 }
-.contact-offres .offre-lien:hover { color: var(--accent); }
+.contact-offres .offre-lien:hover { color: var(--accent); text-decoration: underline; }
 .contact-offres .offre-date { margin-left: 0; }
 
 /* ---------- Pages d'authentification ---------- */
@@ -449,11 +473,11 @@ td a:hover { text-decoration: underline; }
 }
 .chip-cnx {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 50%;
-  font-size: 11px; font-weight: 800; color: #fff;
+  width: 30px; height: 30px; border-radius: 50%;
+  font-size: 12px; font-weight: 800; color: #fff;
   background: #9aa0a6; position: relative;
 }
-.chip-cnx[data-etat="ok"] { background: var(--ok, #3e6b4f); }
+.chip-cnx[data-etat="ok"] { background: #1E874B; }
 .chip-cnx[data-etat="ko"] { background: var(--erreur, #96453d); }
 .chip-cnx[data-etat="ko"]::after {
   content: "!"; position: absolute; top: -4px; right: -4px;

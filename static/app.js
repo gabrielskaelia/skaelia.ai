@@ -1240,6 +1240,10 @@ $("#obConnecterLinkedin")?.addEventListener("click", () => {
   let u = {};
   try { u = await api("/api/moi"); } catch (e) { /* non connecté : géré par api() */ }
   if (u.email) $("#utilisateurEmail").textContent = u.email;
+  // Nom + avatar à initiales dans l'en-tête
+  const nomAffiche = (u.nom || "").trim() || (u.email || "").split("@")[0];
+  $("#userNom").textContent = nomAffiche;
+  $("#userAvatar").textContent = initiales(nomAffiche);
   if (u.admin) $("#navComptes").hidden = false;
   try { await chargerReglages(); } catch (e) { /* réglages indisponibles */ }
 
